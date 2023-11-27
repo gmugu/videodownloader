@@ -195,20 +195,6 @@ async def deleteFile(request):
         traceback.print_exc()
         return web.json_response({"status": "fail", "msg": traceback.format_exc()})
 
-
-async def download_list(request):
-    print("download_list", flush=True)
-    forwarded_host = request.headers.get('X-Forwarded-Host')
-    forwarded_scheme = request.headers.get('X-Forwarded-Proto')
-    text = ""
-    headers = {
-        "Content-Type": "application/x-ns-proxy-autoconfig",
-    }
-    for filename in os.listdir(DOWNLOAD_DIR):
-        text = text + f"{forwarded_scheme}://{forwarded_host}/video/{filename}\n"
-
-    return web.Response(headers=headers, text=text)
-
 async def _cacheVideo(param):
     try:
         cache_id = param["cacheId"]
@@ -383,7 +369,6 @@ if __name__ == "__main__":
             web.post("/cmd/cancel", cancel),
             web.post("/cmd/refreshFileList", refreshFileList),
             web.post("/cmd/deleteFile", deleteFile),
-            web.get("/cmd/files.txt", download_list),
         ]
     )
 
