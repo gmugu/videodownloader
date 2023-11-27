@@ -218,36 +218,17 @@ async def _cacheVideo(param):
 
         print(f"try download {url}, filename: {name}", flush=True)
 
-        proc = None
-        if type == "m3u8" or type == "m3u":
-            proc = subprocess.Popen(
-                [
-                    "N_m3u8DL-RE",
-                    url,
-                    "--tmp-dir",
-                    tmp_dir,
-                    "--save-dir",
-                    tmp_dir,
-                    "--save-name",
-                    name,
-                    "--check-segments-count=false",
-                    "--auto-select",
-                ],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-            )
-        else:
-            proc = subprocess.Popen(
-                [
-                    "aria2c",
-                    url,
-                    f"--dir={tmp_dir}",
-                    f"--out={name}",
-                    "-x8",
-                ],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-            )
+        proc = subprocess.Popen(
+            [
+                "downloader.sh",
+                type,
+                url,
+                tmp_dir,
+                name,
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
 
         downloading_proc[cache_id] = proc
 
@@ -273,8 +254,6 @@ async def _cacheVideo(param):
                 traceback.print_exc()
             finally:
                 tmp_file_path = f"{TMP_DIR}_{cache_id}/{name}"
-                if type == "m3u8" or type == "m3u":
-                    tmp_file_path = f"{tmp_file_path}.mp4"
 
                 if os.path.exists(tmp_file_path):
                     shutil.move(f"{tmp_file_path}", f"{DOWNLOAD_DIR}/{name}")

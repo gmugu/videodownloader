@@ -1,5 +1,7 @@
 FROM python:3.9
 
+COPY rootfs /
+
 RUN set -evu; \
     pip install aiohttp aiohttp-cors; \
     apt update; \
@@ -20,9 +22,7 @@ RUN set -evu; \
         echo "Not compatible with "$(uname -m)" architecture."; \
         exit 1; \
     fi; \
-    chmod a+x /usr/local/bin/N_m3u8DL-RE;
-
-COPY rootfs /
+    chmod a+x /usr/local/bin/N_m3u8DL-RE /usr/local/bin/downloader.sh;
 
 WORKDIR /app/
 
