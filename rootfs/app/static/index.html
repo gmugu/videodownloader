@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport"
+        content="initial-scale=1, minimum-scale=1.0,maximum-scale=1.0,user-scalable=no, width=device-width, viewport-fit=cover">
+    <title>Video Manager Tool</title>
+    <script crossorigin="anonymous" src="https://cdn.staticfile.org/vue/3.2.36/vue.global.min.js"></script>
+    <link crossorigin="anonymous" href="//cdn.staticfile.org/notyf/3.10.0/notyf.min.css" rel="stylesheet">
+    <script crossorigin="anonymous" src="//cdn.staticfile.org/notyf/3.10.0/notyf.min.js"></script>
+    <style>
+        /* button {
+            padding: 5px;
+
+        } */
+
+        .itemCol {
+            /* padding: 5px; */
+            margin: 0.5rem;
+        }
+
+        .statusIng {
+            border-radius: 1rem;
+            color: beige;
+            background-color: cadetblue;
+        }
+
+        .statusFailed {
+            border-radius: 1rem;
+            color: beige;
+            background-color: brown;
+        }
+
+        .statusReady {
+            border-radius: 1rem;
+            color: beige;
+            background-color: burlywood;
+        }
+
+        .statusFinish {
+            border-radius: 1rem;
+            color: rgb(173, 113, 173);
+            background-color: chartreuse;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <div>
+            <div style="display: flex; justify-content: space-around;">
+                <span style="margin: 5px;">地址:</span>
+                <input style="width: 80%; margin: 5px;" id="etUrl" type="url" v-model="cacheUrl" />
+            </div>
+            <div style="display: flex; justify-content: space-around;">
+                <span style="margin: 5px;">名称:</span>
+                <input style="width: 80%; margin: 5px;" id="etName" type="text" v-model="cacheName" />
+            </div>
+            <br>
+            <div style="display: flex; justify-content: space-around;">
+                <button @click="onCache(cacheUrl, cacheName)">新增</button>
+                <button style="margin-left: 1rem;" @click="onRefreshFileList()">刷新</button>
+            </div>
+            <br>
+
+            <div style="overflow-y: scroll;">
+                <div>
+                    <span>正在下载/等待下载</span>
+                </div>
+                <div v-for="item in listDownloadingAndReady"
+                    :class="{'statusIng': item.type === 'downloading', 'statusReady': item.type === 'download_ready'}"
+                    style="display: flex; justify-content: space-between; flex-wrap: wrap; margin: 8px 0;">
+                    <span style="flex: 1 1 100%;" class="itemCol">{{item.name}}</span>
+                    <span style="flex: 0 0 auto;" class="itemCol">{{this._formatTime(new Date(item.time *
+                        1000))}}</span>
+                    <button style="flex: 0 0 auto;" class="itemCol" @click="onCancel(item.cacheId)">取消</span>
+                </div>
+                <br>
+                <div>
+                    <span>已完成/已停止</span>
+                </div>
+                <div v-for="item in listDownloadedAndFailed"
+                    :class="{'statusFinish': item.type === 'downloaded', 'statusFailed': item.type === 'download_failed'}"
+                    style="display: flex; justify-content: space-between; flex-wrap: wrap; margin: 8px 0;">
+                    <span style="flex: 1 1 100%;" class="itemCol"
+                        @click="item.type === 'downloaded' ? onCopyUrl(`${window.location.origin}/file/${item.name}`) : null">{{item.name}}</span>
+                    <span style="flex: 0 0 auto;" class="itemCol">{{this._formatTime(new Date(item.time *
+                        1000))}}</span>
+                    <button style="flex: 0 0 auto;" class="itemCol"
+                        @click="item.type === 'downloaded' ? onDeleteFile(item.name) : onCancel(item.cacheId)">删除</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+<script>
+    const notyf = new Notyf({
+        position: { x: "center", y: "top" },
+        types: [
+            {
+                type: "success",
+                background: "#99c959",
+                duration: 2000,
+            },
+            {
+                type: "warning",
+                background: "#f8b26a",
+                duration: 3000
+            },
+            {
+                type: "error",
+                background: "#e15b64",
+                duration: 3000,
+            }
+        ]
+    });
+    function copy(text) {
+        let transfer = document.createElement('textarea');
+        transfer.style.position = "absolute";
+        transfer.style.left = "-99999px";
+        transfer.style.top = "-99999px";
+        transfer.setAttribute('readonly', 'readonly');
+        document.body.appendChild(transfer);
+        transfer.value = text;
+        transfer.select();
+        if (document.execCommand('copy')) {
+            document.execCommand('copy');
+        }
+        transfer.blur();
+        document.body.removeChild(transfer);
+    }
+
+    const app = {
+        data() {
+            return {
+                host: '.',
+                eventSource: null,
+                downloaded: [],
+                download_failed: [],
+                download_ready: [],
+                downloading: [],
+
+                cacheUrl: '',
+                cacheName: '',
+
+            }
+        },
+        created() {
+            // console.log('created');
+            this.initStatus(this.host);
+        },
+        mounted() {
+            // console.log('mounted');
+        },
+        activated() {
+            // console.log('activated');
+        },
+        watch: {
+            host(newValue, oldValue) {
+                this.initStatus(newValue);
+            }
+        },
+        computed: {
+            listDownloadingAndReady() {
+                let list = []
+                return this.downloading.concat(this.download_ready).sort((a, b) => {
+                    return b.time - a.time
+                })
+            },
+            listDownloadedAndFailed() {
+                return this.downloaded.concat(this.download_failed).sort((a, b) => {
+                    return b.time - a.time
+                })
+            }
+        },
+        methods: {
+            _formatTime(date) {
+                return `${date.getFullYear().toString().padStart(4, '0')}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`;
+            },
+            initStatus(host) {
+                that = this;
+                if (this.eventSource) {
+                    this.eventSource.close();
+                }
+                this.eventSource = new EventSource(`${host}/api/status`);
+                this.eventSource.addEventListener('message', function (e) {
+                    try {
+                        var msg = JSON.parse(e.data);
+                        let wrapData = null;
+                        if (msg.data) {
+                            wrapData = msg.data.map(item => {
+                                item.type = msg.type;
+                                return item;
+                            })
+                        }
+                        switch (msg.type) {
+                            case 'downloaded':
+                                that.downloaded = wrapData;
+                                break;
+                            case 'download_failed':
+                                that.download_failed = wrapData;
+                                break;
+                            case 'download_ready':
+                                that.download_ready = wrapData;
+                                break;
+                            case 'downloading':
+                                that.downloading = wrapData;
+                                break;
+                            default:
+
+                                break;
+                        }
+                    } catch (error) {
+                        console.error(error);
+                    }
+
+                }, false);
+
+                this.eventSource.addEventListener('error', function (e) {
+                    console.log('Error occurred: ', e);
+                    // eventSource.close();
+                }, false);
+            },
+            async onCopyUrl(url) {
+                copy(url);
+                notyf.success('已复制链接');
+            },
+            async onCache(url, name) {
+                try {
+                    let response = await fetch(`${this.host}/api/cache`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            url: url,
+                            type: url.indexOf('m3u8') !== -1 ? 'm3u8' : 'file',
+                            name: name,
+                        })
+                    });
+                    let json = await response.json();
+                    console.log(json)
+
+                } catch (error) {
+                    console.error(error)
+                }
+            },
+            async onCancel(cacheId) {
+                try {
+                    let response = await fetch(`${this.host}/api/cancel`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            cacheId: parseInt(cacheId)
+                        })
+                    });
+                    let json = await response.json();
+                    console.log(json)
+                    if (json.status === 'success') {
+                        notyf.success('取消成功')
+                    } else {
+                        throw "json.status !== 'success'"
+                    }
+                } catch (error) {
+                    console.error(error)
+                    notyf.error('取消失败')
+                }
+            },
+            async onRefreshFileList() {
+                try {
+                    let response = await fetch(`${this.host}/api/refreshFileList`, {
+                        method: 'POST',
+                    });
+                    let json = await response.json();
+                    console.log(json)
+                    if (json.status === 'success') {
+                        notyf.success('刷新文件列表成功')
+                    } else {
+                        throw "json.status !== 'success'"
+                    }
+                } catch (error) {
+                    console.error(error)
+                    notyf.error('刷新文件列表失败')
+                }
+            },
+            async onDeleteFile(filename) {
+                try {
+                    let response = await fetch(`${this.host}/api/deleteFile`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            filename: filename
+                        })
+                    });
+                    let json = await response.json();
+                    console.log(json)
+                    if (json.status === 'success') {
+                        notyf.success('删除文件成功')
+                    } else {
+                        throw "json.status !== 'success'"
+                    }
+                } catch (error) {
+                    console.error(error)
+                    notyf.error('删除文件失败')
+                }
+            },
+        }
+    }
+
+    Vue.createApp(app).mount('#app')
+</script>
+
+</html>

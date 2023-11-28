@@ -26,4 +26,4 @@ aria2c $url --dir=$tmp_dir --out=$name -x8
 
 fi
 
-echo "------完成\n"
+echo "------完成"

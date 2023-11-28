@@ -16,6 +16,9 @@ import json
 
 regex = re.compile(r"\x1B\[.+?m")
 
+USER = os.environ.get('USER') or 'admin'
+PASSWORD = os.environ.get('PASSWORD') or '123456'
+
 DOWNLOAD_DIR = os.environ.get('VIDEO_DIR')
 TMP_DIR = f"{DOWNLOAD_DIR}/.tmp"
 
@@ -202,14 +205,18 @@ async def _cacheVideo(param):
         type = param["type"]
         name = param["name"]
         name = name if name else 'unnamed'
+        file_name, file_ext = os.path.splitext(name)
+        if not file_ext:
+            file_ext = '.mp4'
+            name = f"{name}{file_ext}"
 
         for item in downloaded:
             if item["name"] == name:
-                name = f"{name}.{cache_id}"
+                name = f"{file_name}.{cache_id}{file_ext}"
                 break
         for item in downloading:
             if item["name"] == name:
-                name = f"{name}.{cache_id}"
+                name = f"{file_name}.{cache_id}{file_ext}"
                 break
 
         param["name"] = name
@@ -335,6 +342,42 @@ def _updateDownloaded():
                 }
             )
 
+async def index(request):
+    raise web.HTTPFound('/index.html')
+
+login_failures = {}
+async def auth_middleware(app, handler):
+
+    async def middleware(request):
+        ip_address = request.headers.get('X-Real-IP') or request.headers.get('X-Forwarded-For') or request.remote
+        # print(f'rueqest ip: {ip_address}')
+
+        lf = login_failures.get(ip_address, {'login_fail_count': 0, 'login_fail_time': 0})
+        login_fail_count = lf['login_fail_count']
+        login_fail_time = lf['login_fail_time']
+        if login_fail_count >= 5 and time.time() - login_fail_time < 300:
+            return web.Response(status=401, text='Too many login attempts. Please wait for 5 minutes.')
+        
+        auth_header = request.headers.get('Authorization')
+        if auth_header is None:
+            return web.Response(status=401, headers={'WWW-Authenticate': 'Basic realm="Restricted Area"'}, text='Unauthorized')
+        auth_bytes = base64.b64decode(auth_header.split(' ')[1])
+        auth_string = auth_bytes.decode('utf-8')
+        if ':' not in auth_string:
+            return web.Response(status=401, text='Unauthorized: Invalid format')
+        username, password = auth_string.split(':')
+        if username != USER or password != PASSWORD:
+            login_failures[ip_address] = {'login_fail_count': login_fail_count + 1, 'login_fail_time': time.time()}
+            return web.Response(status=401, text='Unauthorized: Incorrect username or password.')
+        else:
+            login_failures[ip_address] = {'login_fail_count': 0, 'login_fail_time': 0}
+            
+        # 调用下一个中间件或处理程序
+        response = await handler(request)
+        return response
+
+    return middleware
+
 
 if __name__ == "__main__":
     print("running", flush=True)
@@ -343,13 +386,18 @@ if __name__ == "__main__":
     app = web.Application()
     app.add_routes(
         [
-            web.get("/cmd/status", status),
-            web.post("/cmd/cache", cache),
-            web.post("/cmd/cancel", cancel),
-            web.post("/cmd/refreshFileList", refreshFileList),
-            web.post("/cmd/deleteFile", deleteFile),
+            web.get("/", index),
+            web.get("/api/status", status),
+            web.post("/api/cache", cache),
+            web.post("/api/cancel", cancel),
+            web.post("/api/refreshFileList", refreshFileList),
+            web.post("/api/deleteFile", deleteFile),
+            web.static('/file/', path=DOWNLOAD_DIR),
+            web.static('/', path='static'),
         ]
     )
+
+    app.middlewares.append(auth_middleware)
 
     cors = aiohttp_cors.setup(app, defaults={
         "*": aiohttp_cors.ResourceOptions(
