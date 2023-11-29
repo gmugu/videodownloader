@@ -349,29 +349,30 @@ login_failures = {}
 async def auth_middleware(app, handler):
 
     async def middleware(request):
-        ip_address = request.headers.get('X-Real-IP') or request.headers.get('X-Forwarded-For') or request.remote
-        # print(f'rueqest ip: {ip_address}')
+        if request.method != 'OPTIONS':
+            ip_address = request.headers.get('X-Real-IP') or request.headers.get('X-Forwarded-For') or request.remote
+            # print(f'rueqest ip: {ip_address}')
 
-        lf = login_failures.get(ip_address, {'login_fail_count': 0, 'login_fail_time': 0})
-        login_fail_count = lf['login_fail_count']
-        login_fail_time = lf['login_fail_time']
-        if login_fail_count >= 5 and time.time() - login_fail_time < 300:
-            return web.Response(status=401, text='Too many login attempts. Please wait for 5 minutes.')
-        
-        auth_header = request.headers.get('Authorization')
-        if auth_header is None:
-            return web.Response(status=401, headers={'WWW-Authenticate': 'Basic realm="Restricted Area"'}, text='Unauthorized')
-        auth_bytes = base64.b64decode(auth_header.split(' ')[1])
-        auth_string = auth_bytes.decode('utf-8')
-        if ':' not in auth_string:
-            return web.Response(status=401, text='Unauthorized: Invalid format')
-        username, password = auth_string.split(':')
-        if username != USER or password != PASSWORD:
-            login_failures[ip_address] = {'login_fail_count': login_fail_count + 1, 'login_fail_time': time.time()}
-            return web.Response(status=401, text='Unauthorized: Incorrect username or password.')
-        else:
-            login_failures[ip_address] = {'login_fail_count': 0, 'login_fail_time': 0}
+            lf = login_failures.get(ip_address, {'login_fail_count': 0, 'login_fail_time': 0})
+            login_fail_count = lf['login_fail_count']
+            login_fail_time = lf['login_fail_time']
+            if login_fail_count >= 5 and time.time() - login_fail_time < 300:
+                return web.Response(status=401, text='Too many login attempts. Please wait for 5 minutes.')
             
+            auth_header = request.headers.get('Authorization')
+            if auth_header is None:
+                return web.Response(status=401, headers={'WWW-Authenticate': 'Basic realm="Restricted Area"'}, text='Unauthorized')
+            auth_bytes = base64.b64decode(auth_header.split(' ')[1])
+            auth_string = auth_bytes.decode('utf-8')
+            if ':' not in auth_string:
+                return web.Response(status=401, text='Unauthorized: Invalid format')
+            username, password = auth_string.split(':')
+            if username != USER or password != PASSWORD:
+                login_failures[ip_address] = {'login_fail_count': login_fail_count + 1, 'login_fail_time': time.time()}
+                return web.Response(status=401, text='Unauthorized: Incorrect username or password.')
+            else:
+                login_failures[ip_address] = {'login_fail_count': 0, 'login_fail_time': 0}
+
         # 调用下一个中间件或处理程序
         response = await handler(request)
         return response
