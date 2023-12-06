@@ -3,7 +3,7 @@ FROM python:3.9
 COPY rootfs /
 
 RUN set -evu; \
-    pip install aiohttp aiohttp-cors; \
+    pip install aiohttp aiohttp-cors aiohttp_session[secure]; \
     apt update; \
     apt install -y aria2 ffmpeg; \
     apt clean; \

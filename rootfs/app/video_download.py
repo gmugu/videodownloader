@@ -2,7 +2,6 @@
 
 import subprocess
 import re
-import aiohttp
 from aiohttp import web
 import asyncio
 import aiohttp_cors
@@ -13,13 +12,16 @@ import traceback
 import shutil
 import time
 import json
+from cryptography import fernet
+from aiohttp_session import get_session, session_middleware
+from aiohttp_session.cookie_storage import EncryptedCookieStorage
 
 regex = re.compile(r"\x1B\[.+?m")
 
 USER = os.environ.get('USER') or 'admin'
 PASSWORD = os.environ.get('PASSWORD') or '123456'
+DOWNLOAD_DIR = os.environ.get('VIDEO_DIR') or '.'
 
-DOWNLOAD_DIR = os.environ.get('VIDEO_DIR')
 TMP_DIR = f"{DOWNLOAD_DIR}/.tmp"
 
 if not os.path.exists(DOWNLOAD_DIR):
@@ -28,6 +30,8 @@ if not os.path.exists(DOWNLOAD_DIR):
 PORT_NUMBER = 8094
 
 MAX_DOWNLOAD_COUNT = 2
+
+COOKIE_EXPIRATION_DATE = 30 * 24 * 60 * 60
 
 status_queue_map = []
 
@@ -63,7 +67,6 @@ def _notiftRealtimeStatus(info):
 
 
 async def status(request):
-    print("status", flush=True)
     response = web.StreamResponse()
     response.headers["Content-type"] = "text/event-stream"
     response.headers["Cache-Control"] = "no-cache"
@@ -100,20 +103,18 @@ async def status(request):
             info = await status_queue.get()
             await response.write(bytes(f"data: {json.dumps(info)}\n\n", "utf-8"))
     except Exception as e:
-        pass
         # traceback.print_exc()
         try:
             await response.write(bytes("event: error\n", "utf-8"))
             await response.write(bytes(f"data: {traceback.format_exc()}\n\n", "utf-8"))
         except Exception as e:
-            pass
             # traceback.print_exc()
+            return response
     finally:
         status_queue_map.remove(status_queue)
 
 
 async def cache(request):
-    print("cache", flush=True)
 
     cache_id = _genCacheId()
     data = await request.json()
@@ -136,7 +137,6 @@ async def cache(request):
 
 
 async def cancel(request):
-    print("cancel", flush=True)
     data = await request.json()
     cache_id = data["cacheId"]
     try:
@@ -162,7 +162,6 @@ async def cancel(request):
         return web.json_response({"status": "fail", "msg": traceback.format_exc()})
 
 async def refreshFileList(request):
-    print("refreshFileList", flush=True)
     try:
         _updateDownloaded()
         _notiftRealtimeStatus(
@@ -177,7 +176,6 @@ async def refreshFileList(request):
         return web.json_response({"status": "fail", "msg": traceback.format_exc()})
 
 async def deleteFile(request):
-    print("deleteFile", flush=True)
     try:
         data = await request.json()
         filename = data["filename"]
@@ -346,12 +344,17 @@ async def index(request):
     raise web.HTTPFound('/index.html')
 
 login_failures = {}
-async def auth_middleware(app, handler):
 
-    async def middleware(request):
-        if request.method != 'OPTIONS':
+@web.middleware
+async def auth_middleware(request: web.Request, handler) -> web.StreamResponse:
+    print(f'{request.method} {request.path}', flush=True)
+    if request.method != 'OPTIONS':
+        session = await get_session(request)
+        last_visit = session['last_visit'] if 'last_visit' in session else None
+        if (last_visit is None) or (time.time() - last_visit > COOKIE_EXPIRATION_DATE):
+            
             ip_address = request.headers.get('X-Real-IP') or request.headers.get('X-Forwarded-For') or request.remote
-            # print(f'rueqest ip: {ip_address}')
+            # print(f'rueqest ip: {ip_address}', flush=True)
 
             lf = login_failures.get(ip_address, {'login_fail_count': 0, 'login_fail_time': 0})
             login_fail_count = lf['login_fail_count']
@@ -371,13 +374,13 @@ async def auth_middleware(app, handler):
                 login_failures[ip_address] = {'login_fail_count': login_fail_count + 1, 'login_fail_time': time.time()}
                 return web.Response(status=401, text='Unauthorized: Incorrect username or password.')
             else:
+                session['last_visit'] = time.time()
+                
                 login_failures[ip_address] = {'login_fail_count': 0, 'login_fail_time': 0}
 
-        # 调用下一个中间件或处理程序
-        response = await handler(request)
-        return response
-
-    return middleware
+    # 调用下一个中间件或处理程序
+    response = await handler(request)
+    return response
 
 
 if __name__ == "__main__":
@@ -398,6 +401,10 @@ if __name__ == "__main__":
         ]
     )
 
+    # session管理
+    fernet_key = fernet.Fernet.generate_key()
+    app.middlewares.append(session_middleware(EncryptedCookieStorage(fernet.Fernet(fernet_key), max_age=COOKIE_EXPIRATION_DATE)))
+    
     app.middlewares.append(auth_middleware)
 
     cors = aiohttp_cors.setup(app, defaults={
