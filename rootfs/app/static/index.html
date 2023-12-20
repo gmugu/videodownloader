@@ -6,6 +6,12 @@
     <meta name="viewport"
         content="initial-scale=1, minimum-scale=1.0,maximum-scale=1.0,user-scalable=no, width=device-width, viewport-fit=cover">
     <title>Video Manager Tool</title>
+    <!-- 新 Bootstrap5 核心 CSS 文件 -->
+    <!-- <link rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/5.1.1/css/bootstrap.min.css"> -->
+    <!--  popper.min.js 用于弹窗、提示、下拉菜单 -->
+    <!-- <script src="https://cdn.staticfile.org/popper.js/2.9.3/umd/popper.min.js"></script>
+    <script src="https://cdn.staticfile.org/twitter-bootstrap/5.1.1/js/bootstrap.min.js"></script> -->
+
     <script crossorigin="anonymous" src="https://cdn.staticfile.org/vue/3.2.36/vue.global.min.js"></script>
     <link crossorigin="anonymous" href="//cdn.staticfile.org/notyf/3.10.0/notyf.min.css" rel="stylesheet">
     <script crossorigin="anonymous" src="//cdn.staticfile.org/notyf/3.10.0/notyf.min.js"></script>
@@ -87,46 +93,60 @@
     <div id="app">
         <div>
             <h3 style="margin: 1em; width: cal(100% - 2rem); text-align: center;">Video Downloader</h5>
-            <div style="display: flex; justify-content: space-around;">
-                <span style="margin: 5px;">地址:</span>
-                <input style="width: 80%; margin: 5px;" id="etUrl" type="url" v-model="cacheUrl" />
-            </div>
-            <div style="display: flex; justify-content: space-around;">
-                <span style="margin: 5px;">名称:</span>
-                <input style="width: 80%; margin: 5px;" id="etName" type="text" v-model="cacheName" />
-            </div>
-            <div style="display: flex; justify-content: space-around; margin: 1rem;">
-                <button @click="onCache(cacheUrl, cacheName)">新增</button>
-                <button style="margin-left: 1rem;" @click="onRefreshFileList()">刷新</button>
-            </div>
+                <div style="display: flex; justify-content: space-around;">
+                    <span style="margin: 5px;">地址:</span>
+                    <input style="width: 80%; margin: 5px;" id="etUrl" type="url" v-model="cacheUrl" />
+                </div>
+                <div style="display: flex; justify-content: space-around;">
+                    <span style="margin: 5px;">名称:</span>
+                    <input style="width: 80%; margin: 5px;" id="etName" type="text" v-model="cacheName" />
+                </div>
+                <div style="display: flex; justify-content: space-around; margin: 1rem;">
+                    <button @click="onCache(cacheUrl, cacheName)">新增</button>
+                    <button style="margin-left: 1rem;" @click="onRefreshFileList()">刷新</button>
+                </div>
 
-            <div style="overflow-y: scroll;">
-                <div>
-                    <span>正在下载/等待下载</span>
+                <div style="overflow-y: scroll;">
+                    <div>
+                        <span>正在下载/等待下载</span>
+                    </div>
+                    <div v-for="item in download_ready" class="statusReady"
+                        style="display: flex; justify-content: space-between; flex-wrap: wrap;">
+                        <div style="flex: 1 1 100%; display: flex; justify-content: space-between;" class="itemCol">
+                            <span>{{item.name}}</span><span>{{item.speed}}</span>
+                        </div>
+                        <span style="flex: 0 0 auto;" class="itemCol">{{this._formatTime(new Date(item.time *
+                            1000))}}</span>
+                        <button style="flex: 0 0 auto;" @click="onCancel(item.cacheId)">取消</button>
+                    </div>
+                    <div v-for="item in downloading" style="background-color: cadetblue; border-radius: 1rem;" >
+                        <div :style="colorControlStyle(item.progress)" class="statusIng"
+                            style="display: flex; justify-content: space-between; flex-wrap: wrap;">
+                            <div style="flex: 1 1 100%; display: flex; justify-content: space-between;" class="itemCol">
+                                <span>{{item.name}}</span><span>{{item.progress}} / {{item.speed}}</span>
+                            </div>
+                            <span style="flex: 0 0 auto;" class="itemCol">{{this._formatTime(new Date(item.time *
+                                1000))}}</span>
+                            <button style="flex: 0 0 auto;" @click="onCancel(item.cacheId)">取消</button>
+                        </div>
+                    </div>
+                    <br>
+                    <div>
+                        <span>已完成/已停止</span>
+                    </div>
+                    <div v-for="item in listDownloadedAndFailed"
+                        :class="{'statusFinish': item.type === 'downloaded', 'statusFailed': item.type === 'download_failed'}"
+                        style="display: flex; justify-content: space-between; flex-wrap: wrap;">
+                        <div style="flex: 1 1 100%; display: flex; justify-content: space-between;" class="itemCol"
+                            @click="item.type === 'downloaded' ? onCopyUrl(`${this.host}/file/${item.name}`) : null">
+                            <span>{{item.name}}</span>
+                        </div>
+                        <span style="flex: 0 0 auto;" class="itemCol">{{this._formatTime(new Date(item.time *
+                            1000))}}</span>
+                        <button style="flex: 0 0 auto;"
+                            @click="item.type === 'downloaded' ? onDeleteFile(item.name) : onCancel(item.cacheId)">删除</button>
+                    </div>
                 </div>
-                <div v-for="item in listDownloadingAndReady"
-                    :class="{'statusIng': item.type === 'downloading', 'statusReady': item.type === 'download_ready'}"
-                    style="display: flex; justify-content: space-between; flex-wrap: wrap;">
-                    <span style="flex: 1 1 100%;" class="itemCol">{{item.name}}</span>
-                    <span style="flex: 0 0 auto;" class="itemCol">{{this._formatTime(new Date(item.time *
-                        1000))}}</span>
-                    <button style="flex: 0 0 auto;" @click="onCancel(item.cacheId)">取消</button>
-                </div>
-                <br>
-                <div>
-                    <span>已完成/已停止</span>
-                </div>
-                <div v-for="item in listDownloadedAndFailed"
-                    :class="{'statusFinish': item.type === 'downloaded', 'statusFailed': item.type === 'download_failed'}"
-                    style="display: flex; justify-content: space-between; flex-wrap: wrap;">
-                    <span style="flex: 1 1 100%;" class="itemCol"
-                        @click="item.type === 'downloaded' ? onCopyUrl(`${this.host}/file/${item.name}`) : null">{{item.name}}</span>
-                    <span style="flex: 0 0 auto;" class="itemCol">{{this._formatTime(new Date(item.time *
-                        1000))}}</span>
-                    <button style="flex: 0 0 auto;"
-                        @click="item.type === 'downloaded' ? onDeleteFile(item.name) : onCancel(item.cacheId)">删除</button>
-                </div>
-            </div>
         </div>
     </div>
 </body>
@@ -199,16 +219,20 @@
             }
         },
         computed: {
-            listDownloadingAndReady() {
-                let list = []
-                return this.downloading.concat(this.download_ready).sort((a, b) => {
-                    return b.time - a.time
-                })
-            },
             listDownloadedAndFailed() {
                 return this.downloaded.concat(this.download_failed).sort((a, b) => {
                     return b.time - a.time
                 })
+            },
+            colorControlStyle() {
+                return (parameter) => {
+                    if(parameter) {
+                        return {
+                            // background: `linear-gradient(to right, #006400 ${p}%, cadetblue ${100-p}%)`
+                            background: `linear-gradient(90deg, #006400, #0a0 ${parameter}, transparent 0)`
+                        };
+                    }
+                };
             }
         },
         methods: {
@@ -266,9 +290,9 @@
             async onCache(url, name) {
                 try {
                     let type = 'file'
-                    if(url.indexOf('m3u8') !== -1) {
+                    if (url.indexOf('m3u8') !== -1) {
                         type = 'm3u8'
-                    } else if(url.indexOf('m3u') !== -1) {
+                    } else if (url.indexOf('m3u') !== -1) {
                         type = 'm3u'
                     }
                     let response = await fetch(`${this.host}/api/cache`, {

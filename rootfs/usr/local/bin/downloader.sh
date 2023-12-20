@@ -12,7 +12,7 @@ if [ "$type" = "m3u8" ] || [ "$type" = "m3u8" ]; then
 # N_m3u8DL-RE输出的文件名为tmp.mp4
 echo "------开始使用 N_m3u8DL-RE 下载: N_m3u8DL-RE \"$url\" --tmp-dir \"$tmp_dir\" --save-dir \"$tmp_dir\" --save-name "tmp_$name" --check-segments-count=false --auto-select"
 
-N_m3u8DL-RE "$url" --tmp-dir "$tmp_dir" --save-dir "$tmp_dir" --save-name "tmp_$name" --check-segments-count=false --auto-select
+N_m3u8DL-RE "$url" --tmp-dir "$tmp_dir" --save-dir "$tmp_dir" --save-name "tmp_$name" --check-segments-count=false --auto-select --force-ansi-console --noansi
 
 echo "------下载完成, 开始转码: ffmpeg -hide_banner -i \"$tmp_dir/tmp_$name.mp4\" -c copy \"$tmp_dir/$name\""
 
@@ -22,7 +22,76 @@ else
 
 echo "------开始使用 aria2 下载: aria2c \"$url\" \"--dir=$tmp_dir\" \"--out=$name\" -x8"
 
-aria2c "$url" "--dir=$tmp_dir" "--out=$name" -x8
+# aria2c "$url" "--dir=$tmp_dir" "--out=$name" -x8
+
+aria2c_url="http://localhost:6800/jsonrpc"
+data=$(cat <<EOF
+{
+  "jsonrpc": "2.0",
+  "id": "1",
+  "method": "aria2.addUri",
+  "params": [
+    ["$url"],
+    {
+      "dir": "$tmp_dir",
+      "out": "$name",
+      "split": "8"
+    }
+  ]
+}
+EOF
+)
+
+# 发送RPC请求
+response=$(curl -s -X POST -d "$data" "$aria2c_url")
+
+error=$(echo "$response" | jq -r .error)
+if [ "$error" != "null" ]; then
+    echo "RPC请求错误: $response"
+    exit 1
+fi
+
+gid=$(echo "$response" | jq -r .result)
+if [ "$gid" == "null" ]; then
+    echo "RPC请求错误, 无法获取任务GID: $response"
+    exit 1
+fi
+
+data=$(cat <<EOF
+{
+  "jsonrpc": "2.0",
+  "id": "$gid",
+  "method": "aria2.tellStatus",
+  "params": [
+    "$gid"
+  ]
+}
+EOF
+)
+
+while true; do
+    response=$(curl -s -X POST -d "$data" "$aria2c_url")
+    status=$(echo "$response" | jq -r '.result.status')
+
+    if [[ $status == "error" ]]; then
+      echo "下载任务出错: $response"
+      rm "$tmp_dir/$name"
+      exit 1
+    elif [[ $status == "removed" ]]; then
+      echo "下载任务已移除: $response"
+      rm "$tmp_dir/$name"
+      exit 1
+    elif [[ $status == "complete" ]]; then
+      echo "下载任务已完成: $response"
+      break
+    fi
+    
+    completed_length=$(echo "$response" | jq -r '.result.completedLength')
+    total_length=$(echo "$response" | jq -r '.result.totalLength')
+    download_speed=$(echo "$response" | jq -r '.result.downloadSpeed')
+    echo "ARIA2 $completed_length $total_length $download_speed"
+    sleep 1
+done
 
 fi
 

@@ -90,11 +90,11 @@ async def status(request):
         "data": download_ready,
     }
     await response.write(bytes(f"data: {json.dumps(fileInfoList)}\n\n", "utf-8"))
-    fileInfoList = {
-        "type": "downloading",
-        "data": downloading,
-    }
-    await response.write(bytes(f"data: {json.dumps(fileInfoList)}\n\n", "utf-8"))
+    # fileInfoList = {
+    #     "type": "downloading",
+    #     "data": downloading,
+    # }
+    # await response.write(bytes(f"data: {json.dumps(fileInfoList)}\n\n", "utf-8"))
 
     status_queue = asyncio.Queue()
     try:
@@ -245,13 +245,30 @@ async def _cacheVideo(param):
             try:
                 for line in iter(proc.stdout.readline, b""):
                     line = line.decode("utf-8")
-                    line = regex.sub("", line)
+#                    line = regex.sub("", line)
                     line = line.replace("\n", "")
                     # line = line.replace(" ", "")
 
                     if line.startswith("Vid"):
                         line = line.replace("━", "")
-                        # param["progress"] = line
+                        ls = line.split(' ')
+                        param["progress"] = ls[4]
+                        param["speed"] = ls[6]
+
+                    if line.startswith("ARIA2"):
+                        ls = line.split(' ')
+                        completed_length = int(ls[1])
+                        total_length = int(ls[2])
+                        speed = int(ls[3])
+                        if total_length > 0:
+                            param["progress"] = f"{round(completed_length / total_length * 100, 2)}%"
+                            if speed >= 1000000:
+                                param["speed"] = f"{round(speed / 1000000, 2)}MBps"
+                            elif speed >= 1000:
+                                param["speed"] = f"{round(speed / 1000, 2)}KBps"
+                            else:
+                                param["speed"] = f"{speed}Bps"
+
                     if line != "":
                         print(line, flush=True)
 
@@ -315,13 +332,14 @@ async def _task():
                     )
 
                     await _cacheVideo(item)
-                    item["time_downloading"] = time.time()
+                    # item["time_downloading"] = time.time()
                     downloading.append(item)
                     _notiftRealtimeStatus({"type": "downloading", "data": downloading})
 
                     continue
 
-            _notiftRealtimeStatus({"type": "heard"})
+            # _notiftRealtimeStatus({"type": "heard"})
+            _notiftRealtimeStatus({"type": "downloading", "data": downloading})
         except:
             traceback.print_exc()
 
