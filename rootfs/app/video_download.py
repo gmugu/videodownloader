@@ -2,6 +2,7 @@
 
 import subprocess
 import re
+import aiohttp
 from aiohttp import web
 import asyncio
 import aiohttp_cors
@@ -11,6 +12,7 @@ import base64
 import traceback
 import shutil
 import time
+import signal
 import json
 from cryptography import fernet
 from aiohttp_session import get_session, session_middleware
@@ -153,7 +155,22 @@ async def cancel(request):
 
         proc = downloading_proc.get(cache_id)
         if proc:
-            proc.kill()
+            if proc["type"] == 1:#N_m3u8DL-RE
+                os.kill(int(proc["PID"]), signal.SIGKILL)
+            elif proc["type"] == 2:#Aric2
+                gid = proc['GID']
+                payload = {
+                    'jsonrpc': '2.0',
+                    'id': gid,
+                    'method': 'aria2.forceRemove',
+                    'params': [ gid ]
+                }
+                async with aiohttp.ClientSession() as session:
+                    async with session.post('http://localhost:6800/jsonrpc', json=payload) as response:
+                        data = await response.json()
+                        print(data)
+                        if response.status != 200:
+                            return web.json_response({"status": "fail", "msg": "Failed to cancel task: response.status != 200"})
         else:
             return web.json_response({"status": "fail", "msg": "cacheId不存在"})
         return web.json_response({"status": "success"})
@@ -235,8 +252,6 @@ async def _cacheVideo(param):
             stderr=subprocess.STDOUT,
         )
 
-        downloading_proc[cache_id] = proc
-
         def run(param, proc):
             cache_id = param["cacheId"]
             name = param["name"]
@@ -249,11 +264,19 @@ async def _cacheVideo(param):
                     line = line.replace("\n", "")
                     # line = line.replace(" ", "")
 
+                    if line.startswith("N_m3u8DL-RE_PID"):
+                        ls = line.split(' ')
+                        downloading_proc[cache_id] = {"type": 1, "PID": ls[1]}
+
+                    if line.startswith("Aria2_GID"):
+                        ls = line.split(' ')
+                        downloading_proc[cache_id] = {"type": 2, "GID": ls[1]}
+
                     if line.startswith("Vid"):
                         line = line.replace("━", "")
                         ls = line.split(' ')
                         param["progress"] = ls[4]
-                        param["speed"] = ls[6]
+                        param["speed"] = re.sub(r'\(\d+\)$', '', ls[6])
 
                     if line.startswith("ARIA2"):
                         ls = line.split(' ')

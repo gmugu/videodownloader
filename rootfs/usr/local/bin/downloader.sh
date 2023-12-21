@@ -7,12 +7,14 @@ url=$2
 tmp_dir=$3
 name=$4
 
+rm -rf "$tmp_dir"
+
 if [ "$type" = "m3u8" ] || [ "$type" = "m3u8" ]; then
 
 # N_m3u8DL-RE输出的文件名为tmp.mp4
 echo "------开始使用 N_m3u8DL-RE 下载: N_m3u8DL-RE \"$url\" --tmp-dir \"$tmp_dir\" --save-dir \"$tmp_dir\" --save-name "tmp_$name" --check-segments-count=false --auto-select"
 
-N_m3u8DL-RE "$url" --tmp-dir "$tmp_dir" --save-dir "$tmp_dir" --save-name "tmp_$name" --check-segments-count=false --auto-select --force-ansi-console --noansi
+N_m3u8DL-RE "$url" --tmp-dir "$tmp_dir" --save-dir "$tmp_dir" --save-name "tmp_$name" --check-segments-count=false --auto-select --force-ansi-console --noansi & pid=$!; echo "N_m3u8DL-RE_PID $pid"; wait $pid
 
 echo "------下载完成, 开始转码: ffmpeg -hide_banner -i \"$tmp_dir/tmp_$name.mp4\" -c copy \"$tmp_dir/$name\""
 
@@ -56,7 +58,7 @@ if [ "$gid" == "null" ]; then
     echo "RPC请求错误, 无法获取任务GID: $response"
     exit 1
 fi
-
+echo "Aria2_GID $gid"
 data=$(cat <<EOF
 {
   "jsonrpc": "2.0",
