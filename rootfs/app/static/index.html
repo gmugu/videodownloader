@@ -112,8 +112,9 @@
                     </div>
                     <div v-for="item in download_ready" class="statusReady"
                         style="display: flex; justify-content: space-between; flex-wrap: wrap;">
-                        <div style="flex: 1 1 100%; display: flex; justify-content: space-between;" class="itemCol">
-                            <span>{{item.name}}</span><span>{{item.speed}}</span>
+                        <div style="flex: 1 1 100%; display: flex; justify-content: space-between; width: 0px;"
+                            class="itemCol">
+                            <span style="width: 95%; word-wrap: break-word;">{{item.name}}</span>
                         </div>
                         <span style="flex: 0 0 auto;" class="itemCol">{{this._formatTime(new Date(item.time *
                             1000))}}</span>
@@ -122,8 +123,10 @@
                     <div v-for="item in downloading" style="background-color: cadetblue; border-radius: 1rem;">
                         <div :style="colorControlStyle(item.progress)" class="statusIng"
                             style="display: flex; justify-content: space-between; flex-wrap: wrap;">
-                            <div style="flex: 1 1 100%; display: flex; justify-content: space-between;" class="itemCol">
-                                <span>{{item.name}}</span><span>{{item.progress}} / {{item.speed}}</span>
+                            <div style="flex: 1 1 100%; display: flex; justify-content: space-between; width: 0px;"
+                                class="itemCol">
+                                <span style="width: 72%; word-wrap: break-word;">{{item.name}}</span><span
+                                    style="text-align: right;">{{item.speed}}</span>
                             </div>
                             <span style="flex: 0 0 auto;" class="itemCol">{{this._formatTime(new Date(item.time *
                                 1000))}}</span>
@@ -137,9 +140,11 @@
                     <div v-for="item in listDownloadedAndFailed"
                         :class="{'statusFinish': item.type === 'downloaded', 'statusFailed': item.type === 'download_failed'}"
                         style="display: flex; justify-content: space-between; flex-wrap: wrap;">
-                        <div style="flex: 1 1 100%; display: flex; justify-content: space-between;" class="itemCol"
+                        <div style="flex: 1 1 100%; display: flex; justify-content: space-between; width: 0px;"
+                            class="itemCol"
                             @click="item.type === 'downloaded' ? onCopyUrl(`${this.host}/file/${item.name}`) : null">
-                            <span>{{item.name}}</span><span>{{formatSize(item.size)}}</span>
+                            <span style="width: 80%; word-wrap: break-word;">{{item.name}}</span><span
+                                style="text-align: right;">{{formatSize(item.size)}}</span>
                         </div>
                         <span style="flex: 0 0 auto;" class="itemCol">{{this._formatTime(new Date(item.time *
                             1000))}}</span>

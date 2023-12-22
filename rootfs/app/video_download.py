@@ -18,7 +18,7 @@ from cryptography import fernet
 from aiohttp_session import get_session, session_middleware
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
 
-regex = re.compile(r"\x1B\[.+?m")
+m3u8_speed_pattern = re.compile(r'\(\d+\)')
 
 USER = os.environ.get('USER') or 'admin'
 PASSWORD = os.environ.get('PASSWORD') or '123456'
@@ -260,9 +260,9 @@ async def _cacheVideo(param):
             try:
                 for line in iter(proc.stdout.readline, b""):
                     line = line.decode("utf-8")
-#                    line = regex.sub("", line)
                     line = line.replace("\n", "")
-                    # line = line.replace(" ", "")
+                    if line == '':
+                        continue
 
                     if line.startswith("N_m3u8DL-RE_PID"):
                         ls = line.split(' ')
@@ -275,8 +275,13 @@ async def _cacheVideo(param):
                     if line.startswith("Vid"):
                         line = line.replace("━", "")
                         ls = line.split(' ')
-                        param["progress"] = ls[4]
-                        param["speed"] = re.sub(r'\(\d+\)$', '', ls[6])
+                        for item in reversed(ls):
+                            if 'Bps' in item:
+                                param["speed"] = m3u8_speed_pattern.sub('', item)
+                                continue
+                            if item.endswith('%'):
+                                param["progress"] = item
+                                break
 
                     if line.startswith("ARIA2"):
                         ls = line.split(' ')
@@ -292,8 +297,7 @@ async def _cacheVideo(param):
                             else:
                                 param["speed"] = f"{speed}Bps"
 
-                    if line != "":
-                        print(line, flush=True)
+                    print(line, flush=True)
 
             except Exception as e:
                 traceback.print_exc()
