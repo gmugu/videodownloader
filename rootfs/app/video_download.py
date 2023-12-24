@@ -370,9 +370,25 @@ async def _task():
         except:
             traceback.print_exc()
 
-
+def get_disk_free_space(path):
+    stat = os.statvfs(path)
+    # 获取每个块的大小
+    block_size = stat.f_frsize
+    # 获取可用块的数量
+    available_blocks = stat.f_bavail
+    # 计算剩余空间
+    free_space = available_blocks * block_size
+    return free_space
+    
 def _updateDownloaded():
     downloaded.clear()
+    downloaded.append(
+        {
+            "name": '__FREE_SIZE__',
+            "time": 0,
+            "size": get_disk_free_space(DOWNLOAD_DIR),
+        }
+    )
     for filename in os.listdir(DOWNLOAD_DIR):
         file_path = os.path.join(DOWNLOAD_DIR, filename)  # 获取文件路径
         if os.path.isfile(file_path):  # 如果该路径是一个文件

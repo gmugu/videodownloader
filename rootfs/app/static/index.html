@@ -81,8 +81,10 @@
 
         .statusFinish {
             border-radius: 1rem;
-            color: beige;
-            background-color: #006400;
+            /* color: beige; */
+            /* background-color: #006400; */
+            color: #fff;
+            background: linear-gradient(90deg, #006400, #0a0 100%, transparent 0);
             margin: 0.5rem 0;
             padding: 0.3rem 0.6rem;
         }
@@ -110,7 +112,7 @@
                     <div>
                         <span>正在下载/等待下载</span>
                     </div>
-                    <div v-for="item in download_ready" class="statusReady"
+                    <div v-for="item in listDownloadReady" class="statusReady"
                         style="display: flex; justify-content: space-between; flex-wrap: wrap;">
                         <div style="flex: 1 1 100%; display: flex; justify-content: space-between; width: 0px;"
                             class="itemCol">
@@ -120,7 +122,7 @@
                             1000))}}</span>
                         <button style="flex: 0 0 auto;" @click="onCancel(item.cacheId)">取消</button>
                     </div>
-                    <div v-for="item in downloading" style="background-color: cadetblue; border-radius: 1rem;">
+                    <div v-for="item in listDownloading" style="background-color: cadetblue; border-radius: 1rem;">
                         <div :style="colorControlStyle(item.progress)" class="statusIng"
                             style="display: flex; justify-content: space-between; flex-wrap: wrap;">
                             <div style="flex: 1 1 100%; display: flex; justify-content: space-between; width: 0px;"
@@ -134,8 +136,9 @@
                         </div>
                     </div>
                     <br>
-                    <div>
+                    <div style="display: flex; justify-content: space-between;">
                         <span>已完成/已停止</span>
+                        <span>剩余空间：{{formatSize(freeSize)}}</span>
                     </div>
                     <div v-for="item in listDownloadedAndFailed"
                         :class="{'statusFinish': item.type === 'downloaded', 'statusFailed': item.type === 'download_failed'}"
@@ -224,8 +227,26 @@
             }
         },
         computed: {
+            freeSize() {
+                let ret = this.downloaded.find(item => typeof (item.time) != 'number' || item.time <= 0);
+                if (typeof (ret) != 'undefined' && typeof (ret.size) == 'number') {
+                    return ret.size;
+                } else {
+                    return 0
+                }
+            },
+            listDownloading() {
+                return this.downloading.sort((a, b) => {
+                    return b.time - a.time
+                });
+            },
+            listDownloadReady() {
+                return this.download_ready.sort((a, b) => {
+                    return b.time - a.time
+                });
+            },
             listDownloadedAndFailed() {
-                return this.downloaded.concat(this.download_failed).sort((a, b) => {
+                return this.downloaded.filter(item => item.time > 0).concat(this.download_failed).sort((a, b) => {
                     return b.time - a.time
                 })
             },
