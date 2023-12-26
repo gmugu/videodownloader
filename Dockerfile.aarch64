@@ -1,0 +1,16 @@
+FROM python:3.9
+
+COPY temp/arm64/N_m3u8DL-RE /usr/local/bin/N_m3u8DL-RE
+COPY rootfs /
+
+RUN set -evu; \
+    pip install aiohttp aiohttp-cors aiohttp_session[secure]; \
+    apt update; \
+    apt install -y aria2 ffmpeg jq; \
+    apt clean; \
+    rm -rf /var/lib/apt/lists/*; \
+    chmod +x /entrypoint.sh /usr/local/bin/N_m3u8DL-RE /usr/local/bin/downloader.sh;
+
+WORKDIR /app/
+EXPOSE 8094
+CMD [ "/entrypoint.sh" ]

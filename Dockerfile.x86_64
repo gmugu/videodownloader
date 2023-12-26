@@ -1,0 +1,22 @@
+FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS builder
+
+RUN set -evu; \
+    apk add --no-cache clang libc-dev zlib-dev libbsd-dev libgcc libstdc++; \
+    cd /; \
+    git clone -b nonansi-logout https://github.com/gmugu/N_m3u8DL-RE.git; \
+    cd N_m3u8DL-RE; \
+    dotnet publish src/N_m3u8DL-RE -c Release -o artifact;
+
+FROM python:3.9-alpine
+
+COPY --from=builder /N_m3u8DL-RE/artifact/N_m3u8DL-RE /usr/local/bin/N_m3u8DL-RE
+COPY rootfs /
+
+RUN set -evu; \
+    pip install aiohttp aiohttp-cors aiohttp_session[secure]; \
+    apk add --no-cache bash icu-libs aria2 ffmpeg jq curl; \
+    chmod +x /entrypoint.sh /usr/local/bin/N_m3u8DL-RE /usr/local/bin/downloader.sh;
+
+WORKDIR /app/
+EXPOSE 8094
+CMD [ "/entrypoint.sh" ]
