@@ -73,7 +73,11 @@ async def status(request):
     response.headers["Content-type"] = "text/event-stream"
     response.headers["Cache-Control"] = "no-cache"
     response.headers["Connection"] = "keep-alive"
-    await response.prepare(request)
+    try:
+        await response.prepare(request)
+    except Exception as e:
+        # traceback.print_exc()
+        return response
 
     await response.write(bytes("event: message\n", "utf-8"))
 
