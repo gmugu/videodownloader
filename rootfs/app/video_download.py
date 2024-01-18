@@ -23,6 +23,8 @@ m3u8_speed_pattern = re.compile(r'\(\d+\)')
 USER = os.environ.get('USER') or 'admin'
 PASSWORD = os.environ.get('PASSWORD') or '123456'
 DOWNLOAD_DIR = os.environ.get('VIDEO_DIR') or '.'
+MAX_DOWNLOAD_COUNT = os.environ.get('MAX_DOWNLOAD_COUNT')
+MAX_DOWNLOAD_COUNT = int(MAX_DOWNLOAD_COUNT) if MAX_DOWNLOAD_COUNT else 3
 
 TMP_DIR = f"{DOWNLOAD_DIR}/.tmp"
 
@@ -30,8 +32,6 @@ if not os.path.exists(DOWNLOAD_DIR):
     os.makedirs(DOWNLOAD_DIR)
 
 PORT_NUMBER = 8094
-
-MAX_DOWNLOAD_COUNT = 2
 
 COOKIE_EXPIRATION_DATE = 30 * 24 * 60 * 60
 
