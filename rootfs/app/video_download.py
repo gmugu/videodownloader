@@ -156,6 +156,16 @@ async def cancel(request):
                     }
                 )
                 return web.json_response({"status": "success"})
+        for item in download_ready:
+            if item["cacheId"] == cache_id:
+                download_ready.remove(item)
+                _notiftRealtimeStatus(
+                    {
+                        "type": "download_ready",
+                        "data": download_ready,
+                    }
+                )
+                return web.json_response({"status": "success"})
 
         proc = downloading_proc.get(cache_id)
         if proc:
