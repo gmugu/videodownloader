@@ -88,6 +88,16 @@
             margin: 0.5rem 0;
             padding: 0.3rem 0.6rem;
         }
+
+        .statusFinishDir {
+            border-radius: 1rem;
+            /* color: beige; */
+            /* background-color: #006400; */
+            color: #fff;
+            background: linear-gradient(90deg, #706e00, #5a5 100%, transparent 0);
+            margin: 0.5rem 0;
+            padding: 0.3rem 0.6rem;
+        }
     </style>
 </head>
 
@@ -141,7 +151,7 @@
                         <span>剩余空间：{{formatSize(freeSize)}}</span>
                     </div>
                     <div v-for="item in listDownloadedAndFailed"
-                        :class="{'statusFinish': item.type === 'downloaded', 'statusFailed': item.type === 'download_failed'}"
+                        :class="{'statusFinish': item.type === 'downloaded', 'statusFailed': item.type === 'download_failed', 'statusFinishDir': item.name.endsWith('/')}"
                         style="display: flex; justify-content: space-between; flex-wrap: wrap;">
                         <div style="flex: 1 1 100%; display: flex; justify-content: space-between; width: 0px;"
                             class="itemCol"

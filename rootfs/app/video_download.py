@@ -212,7 +212,10 @@ async def deleteFile(request):
         filename = data["filename"]
         filepath = f"{DOWNLOAD_DIR}/{filename}"
         if os.path.exists(filepath):
-            os.remove(filepath)
+            if os.path.isfile(filepath):
+                os.remove(filepath)
+            else:
+                os.rmdir(filepath)
             _updateDownloaded()
             _notiftRealtimeStatus(
                 {
@@ -394,6 +397,31 @@ def get_disk_free_space(path):
     free_space = available_blocks * block_size
     return free_space
     
+def _getDir(path, prefix, retList):
+    for filename in os.listdir(path):
+        showName = filename
+        if prefix != '':
+            showName = (prefix + '/' + filename)
+        file_path = os.path.join(path, filename)    # 获取文件路径
+        file_stat = os.stat(file_path)              # 获取文件信息
+        if os.path.isfile(file_path):               # 如果该路径是一个文件
+            retList.append(
+                {
+                    "name": showName,
+                    "time": file_stat.st_ctime,
+                    "size": file_stat.st_size,
+                }
+            )
+        else:                                       #如果该路径是一个文件夹，获取里头的文件
+            retList.append(
+                {
+                    "name": showName + '/',
+                    "time": file_stat.st_ctime,
+                    "size": file_stat.st_size,
+                }
+            )
+            _getDir(file_path, showName, retList)
+
 def _updateDownloaded():
     downloaded.clear()
     downloaded.append(
@@ -403,17 +431,7 @@ def _updateDownloaded():
             "size": get_disk_free_space(DOWNLOAD_DIR),
         }
     )
-    for filename in os.listdir(DOWNLOAD_DIR):
-        file_path = os.path.join(DOWNLOAD_DIR, filename)  # 获取文件路径
-        if os.path.isfile(file_path):  # 如果该路径是一个文件
-            file_stat = os.stat(file_path)
-            downloaded.append(
-                {
-                    "name": filename,
-                    "time": file_stat.st_ctime,
-                    "size": file_stat.st_size,
-                }
-            )
+    _getDir(DOWNLOAD_DIR, '', downloaded)
 
 async def index(request):
     raise web.HTTPFound('/index.html')
