@@ -256,9 +256,7 @@
                 });
             },
             listDownloadedAndFailed() {
-                return this.downloaded.filter(item => item.time > 0).concat(this.download_failed).sort((a, b) => {
-                    return b.time - a.time
-                })
+                return this.downloaded.filter(item => item.time > 0).concat(this.download_failed);
             },
             colorControlStyle() {
                 return (parameter) => {
