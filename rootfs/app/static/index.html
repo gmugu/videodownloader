@@ -150,19 +150,31 @@
                         <span>已完成/已停止</span>
                         <span>剩余空间：{{formatSize(freeSize)}}</span>
                     </div>
-                    <div v-for="item in listDownloadedAndFailed"
-                        :class="{'statusFinish': item.type === 'downloaded', 'statusFailed': item.type === 'download_failed', 'statusFinishDir': item.name.endsWith('/')}"
+                    <div v-for="item in listDownloaded" v-show="isShow(item)" class="statusFinish"
+                        :class="{'statusFinishDir': item.isDir}"
                         style="display: flex; justify-content: space-between; flex-wrap: wrap;">
                         <div style="flex: 1 1 100%; display: flex; justify-content: space-between; width: 0px;"
-                            class="itemCol"
-                            @click="item.type === 'downloaded' ? onCopyUrl(`${this.host}/file/${item.name}`) : null">
-                            <span style="width: 80%; word-wrap: break-word;">{{item.name}}</span><span
+                            class="itemCol" :style="subDirStyle(item.layer)" @click="onDownloadedItemClick(item)">
+                            <span style="width: 80%; word-wrap: break-word;"><span v-if="item.isDir"
+                                    style="padding-right: 1rem;">{{item.isFolded ? '▶' :
+                                    '▼'}}</span>{{item.filename}}</span>
+                            <span v-show="item.isDir === false"
                                 style="text-align: right;">{{formatSize(item.size)}}</span>
+                        </div>
+                        <span style="flex: 0 0 auto;" :style="subDirStyle(item.layer)"
+                            class="itemCol">{{this._formatTime(new Date(item.time *
+                            1000))}}</span>
+                        <button style="flex: 0 0 auto;" @click="onDeleteFile(item.name)">删除</button>
+                    </div>
+                    <div v-for="item in listDownloadFailed" class="statusFailed"
+                        style="display: flex; justify-content: space-between; flex-wrap: wrap;">
+                        <div style="flex: 1 1 100%; display: flex; justify-content: space-between; width: 0px;"
+                            class="itemCol">
+                            <span style="width: 95%; word-wrap: break-word;">{{item.name}}</span>
                         </div>
                         <span style="flex: 0 0 auto;" class="itemCol">{{this._formatTime(new Date(item.time *
                             1000))}}</span>
-                        <button style="flex: 0 0 auto;"
-                            @click="item.type === 'downloaded' ? onDeleteFile(item.name) : onCancel(item.cacheId)">删除</button>
+                        <button style="flex: 0 0 auto;" @click="onCancel(item.cacheId)">删除</button>
                     </div>
                 </div>
         </div>
@@ -214,6 +226,7 @@
                 download_failed: [],
                 download_ready: [],
                 downloading: [],
+                downloadedDirs: new Map(),
 
                 cacheUrl: '',
                 cacheName: '',
@@ -255,8 +268,23 @@
                     return b.time - a.time
                 });
             },
-            listDownloadedAndFailed() {
-                return this.downloaded.filter(item => item.time > 0).concat(this.download_failed);
+            listDownloadFailed() {
+                return this.download_failed.sort((a, b) => {
+                    return b.time - a.time
+                });
+            },
+            listDownloaded() {
+                for (var item of this.downloaded) {
+                    if (item.isDir) {
+                        var isFolded = true;
+                        if (this.downloadedDirs.has(item.name)) {
+                            isFolded = this.downloadedDirs.get(item.name).isFolded;
+                        }
+                        item.isFolded = isFolded;
+                        this.downloadedDirs.set(item.name, item);
+                    }
+                }
+                return this.downloaded.filter(item => item.time > 0);
             },
             colorControlStyle() {
                 return (parameter) => {
@@ -267,9 +295,29 @@
                         };
                     }
                 };
+            },
+            subDirStyle() {
+                return (layer) => {
+                    if (layer) {
+                        var d = layer * 2
+                        return {
+                            paddingLeft: `${d}rem`
+                        }
+                    }
+                }
             }
         },
         methods: {
+            isShow(item) {
+                for (var prefix = item.prefix; prefix && prefix !== '';) {
+                    var p = this.downloadedDirs.get(prefix);
+                    if (p.isFolded) {
+                        return false;
+                    }
+                    prefix = p.prefix;
+                }
+                return true;
+            },
             _formatTime(date) {
                 return `${date.getFullYear().toString().padStart(4, '0')}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`;
             },
@@ -334,6 +382,13 @@
             async onCopyUrl(url) {
                 copy(url);
                 notyf.success('已复制链接');
+            },
+            async onDownloadedItemClick(item) {
+                if (item.isDir) {
+                    item.isFolded = !item.isFolded
+                } else {
+                    this.onCopyUrl(`${this.host}/file/${item.name}`)
+                }
             },
             async onCache(url, name) {
                 try {

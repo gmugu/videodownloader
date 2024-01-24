@@ -397,41 +397,43 @@ def get_disk_free_space(path):
     free_space = available_blocks * block_size
     return free_space
     
-def _getDir(path, prefix, retList):
+def _getDir(path, retList, prefix='', layer=0):
+    
     for filename in os.listdir(path):
         showName = filename
         if prefix != '':
             showName = (prefix + '/' + filename)
         file_path = os.path.join(path, filename)    # 获取文件路径
         file_stat = os.stat(file_path)              # 获取文件信息
-        if os.path.isfile(file_path):               # 如果该路径是一个文件
-            retList.append(
-                {
-                    "name": showName,
-                    "time": file_stat.st_ctime,
-                    "size": file_stat.st_size,
-                }
-            )
-        else:                                       #如果该路径是一个文件夹，获取里头的文件
-            retList.append(
-                {
-                    "name": showName + '/',
-                    "time": file_stat.st_ctime,
-                    "size": file_stat.st_size,
-                }
-            )
-            _getDir(file_path, showName, retList)
+        isDir = not os.path.isfile(file_path)
+        retList.append(
+            {
+                "name": showName,
+                "filename": filename,
+                "time": file_stat.st_ctime,
+                "size": file_stat.st_size,
+                "isDir": isDir,
+                "prefix": prefix,
+                "layer": layer,
+            }
+        )
+        if isDir:
+            _getDir(file_path, retList, showName, layer+1)
 
 def _updateDownloaded():
     downloaded.clear()
     downloaded.append(
         {
             "name": '__FREE_SIZE__',
+            "fullname": '__FREE_SIZE__',
             "time": 0,
             "size": get_disk_free_space(DOWNLOAD_DIR),
+            "isDir": False,
+            "prefix": '',
+            "layer": 0,
         }
     )
-    _getDir(DOWNLOAD_DIR, '', downloaded)
+    _getDir(DOWNLOAD_DIR, downloaded)
 
 async def index(request):
     raise web.HTTPFound('/index.html')
