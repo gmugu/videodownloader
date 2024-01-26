@@ -98,6 +98,10 @@
             margin: 0.5rem 0;
             padding: 0.3rem 0.6rem;
         }
+
+        .rotate-90 {
+            transform: rotate(90deg);
+        }
     </style>
 </head>
 
@@ -156,15 +160,15 @@
                         <div style="flex: 1 1 100%; display: flex; justify-content: space-between; width: 0px;"
                             class="itemCol" :style="subDirStyle(item.layer)" @click="onDownloadedItemClick(item)">
                             <span style="width: 80%; word-wrap: break-word;"><span v-if="item.isDir"
-                                    style="padding-right: 1rem;">{{item.isFolded ? '▶' :
-                                    '▼'}}</span>{{item.filename}}</span>
+                                    style="margin-right: 1rem; display: inline-block;"
+                                    :class="{'rotate-90': !item.isFolded}">▶</span>{{item.name}}</span>
                             <span v-show="item.isDir === false"
                                 style="text-align: right;">{{formatSize(item.size)}}</span>
                         </div>
                         <span style="flex: 0 0 auto;" :style="subDirStyle(item.layer)"
                             class="itemCol">{{this._formatTime(new Date(item.time *
                             1000))}}</span>
-                        <button style="flex: 0 0 auto;" @click="onDeleteFile(item.name)">删除</button>
+                        <button style="flex: 0 0 auto;" @click="onDeleteFile(item.fullname)">删除</button>
                     </div>
                     <div v-for="item in listDownloadFailed" class="statusFailed"
                         style="display: flex; justify-content: space-between; flex-wrap: wrap;">
@@ -223,6 +227,7 @@
                 host: '.',
                 eventSource: null,
                 downloaded: [],
+                downloadedShow: [],
                 download_failed: [],
                 download_ready: [],
                 downloading: [],
@@ -274,17 +279,56 @@
                 });
             },
             listDownloaded() {
-                for (var item of this.downloaded) {
-                    if (item.isDir) {
-                        var isFolded = true;
-                        if (this.downloadedDirs.has(item.name)) {
-                            isFolded = this.downloadedDirs.get(item.name).isFolded;
+                this.downloaded = this.downloaded.filter(item => item.time > 0);
+
+                function sortDir(dir) {
+                    for (var item of dir) {
+                        if (item.isDir) {
+                            sortDir(item.childs);
                         }
-                        item.isFolded = isFolded;
-                        this.downloadedDirs.set(item.name, item);
+                    }
+                    dir.sort((a, b) => {
+                        if (a.isDir === b.isDir) {
+                            return a.name.localeCompare(b.name);
+                        } else {
+                            return a.isDir ? -1 : 1;
+                        }
+                    });
+                };
+                sortDir(this.downloaded)
+
+                var flatData = (obj, ary, prefix = '', layer = 0) => {
+                    for (var item of obj) {
+                        var fullname = layer === 0 ? item.name : item.prefix + '/' + item.name
+
+                        var it = {
+                            name: item.name,
+                            time: item.time,
+                            size: item.size,
+                            isDir: item.isDir,
+                            fullname: fullname,
+                            prefix: prefix,
+                            layer: layer,
+                        }
+
+                        ary.push(it)
+
+                        if (item.isDir) {
+                            it.isFolded = true;
+                            if (this.downloadedDirs.has(it.fullname)) {
+                                it.isFolded = this.downloadedDirs.get(it.fullname).isFolded;
+                            }
+                            this.downloadedDirs.set(it.fullname, it);
+
+                            flatData(item.childs, ary, fullname, layer + 1)
+                        }
                     }
                 }
-                return this.downloaded.filter(item => item.time > 0);
+
+                this.downloadedShow = [];
+                flatData(this.downloaded, this.downloadedShow)
+
+                return this.downloadedShow;
             },
             colorControlStyle() {
                 return (parameter) => {
@@ -351,23 +395,7 @@
                                 return item;
                             })
                         }
-                        switch (msg.type) {
-                            case 'downloaded':
-                                that.downloaded = wrapData;
-                                break;
-                            case 'download_failed':
-                                that.download_failed = wrapData;
-                                break;
-                            case 'download_ready':
-                                that.download_ready = wrapData;
-                                break;
-                            case 'downloading':
-                                that.downloading = wrapData;
-                                break;
-                            default:
-
-                                break;
-                        }
+                        that[msg.type] = wrapData;
                     } catch (error) {
                         console.error(error);
                     }
@@ -387,7 +415,7 @@
                 if (item.isDir) {
                     item.isFolded = !item.isFolded
                 } else {
-                    this.onCopyUrl(`${this.host}/file/${item.name}`)
+                    this.onCopyUrl(`${this.host}/file/${item.fullname}`)
                 }
             },
             async onCache(url, name) {

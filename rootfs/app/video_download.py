@@ -406,19 +406,20 @@ def _getDir(path, retList, prefix='', layer=0):
         file_path = os.path.join(path, filename)    # 获取文件路径
         file_stat = os.stat(file_path)              # 获取文件信息
         isDir = not os.path.isfile(file_path)
+
+        childs = None
+        if isDir:
+            childs = []
+            _getDir(file_path, childs, showName, layer+1)
         retList.append(
             {
-                "name": showName,
-                "filename": filename,
+                "name": filename,
                 "time": file_stat.st_ctime,
                 "size": file_stat.st_size,
                 "isDir": isDir,
-                "prefix": prefix,
-                "layer": layer,
+                "childs": childs,
             }
         )
-        if isDir:
-            _getDir(file_path, retList, showName, layer+1)
 
 def _updateDownloaded():
     downloaded.clear()
