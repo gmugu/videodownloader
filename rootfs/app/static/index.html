@@ -279,8 +279,6 @@
                 });
             },
             listDownloaded() {
-                this.downloaded = this.downloaded.filter(item => item.time > 0);
-
                 function sortDir(dir) {
                     for (var item of dir) {
                         if (item.isDir) {
@@ -328,7 +326,7 @@
                 this.downloadedShow = [];
                 flatData(this.downloaded, this.downloadedShow)
 
-                return this.downloadedShow;
+                return this.downloadedShow.filter(item => item.time > 0);
             },
             colorControlStyle() {
                 return (parameter) => {
