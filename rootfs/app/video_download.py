@@ -323,7 +323,8 @@ async def _cacheVideo(param):
 
                 if os.path.exists(tmp_file_path):
                     shutil.move(f"{tmp_file_path}", f"{DOWNLOAD_DIR}/{name}")
-
+                    if os.path.exists(f"{TMP_DIR}_{cache_id}"):
+                        shutil.rmtree(f"{TMP_DIR}_{cache_id}")
                     _updateDownloaded()
                     _notiftRealtimeStatus(
                         {

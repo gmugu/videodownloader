@@ -297,7 +297,7 @@
 
                 var flatData = (obj, ary, prefix = '', layer = 0) => {
                     for (var item of obj) {
-                        var fullname = layer === 0 ? item.name : item.prefix + '/' + item.name
+                        var fullname = layer === 0 ? item.name : prefix + '/' + item.name
 
                         var it = {
                             name: item.name,
