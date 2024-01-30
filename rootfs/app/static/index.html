@@ -117,8 +117,14 @@
                     <span style="margin: 5px;">名称:</span>
                     <input style="width: 80%; margin: 5px;" id="etName" type="text" v-model="cacheName" />
                 </div>
+                <div style="display: flex; justify-content: space-around;">
+                    <div>
+                        <input style="margin: 5px;" id="cbIsTranscode" type="checkbox" name="checkbox1" v-model="transcode"/>
+                        <label for="cbIsTranscode">是否转码</label>
+                    </div><br>
+                </div>
                 <div style="display: flex; justify-content: space-around; margin: 1rem;">
-                    <button @click="onCache(cacheUrl, cacheName)">新增</button>
+                    <button @click="onCache(cacheUrl, cacheName, transcode)">新增</button>
                     <button style="margin-left: 1rem;" @click="onRefreshFileList()">刷新</button>
                 </div>
 
@@ -235,6 +241,7 @@
 
                 cacheUrl: '',
                 cacheName: '',
+                transcode: false,
 
             }
         },
@@ -416,7 +423,7 @@
                     this.onCopyUrl(`${this.host}/file/${item.fullname}`)
                 }
             },
-            async onCache(url, name) {
+            async onCache(url, name, transcode) {
                 try {
                     let type = 'file'
                     if (url.indexOf('m3u8') !== -1) {
@@ -433,6 +440,7 @@
                             url,
                             type,
                             name,
+                            transcode,
                         })
                     });
                     let json = await response.json();

@@ -6,6 +6,7 @@ type=$1
 url=$2
 tmp_dir=$3
 name=$4
+transcode=$5
 
 rm -rf "$tmp_dir"
 
@@ -16,9 +17,12 @@ echo "------开始使用 N_m3u8DL-RE 下载: N_m3u8DL-RE \"$url\" --tmp-dir \"$t
 
 N_m3u8DL-RE "$url" --tmp-dir "$tmp_dir" --save-dir "$tmp_dir" --save-name "tmp_$name" --check-segments-count=false --auto-select --force-ansi-console --noansi & pid=$!; echo "N_m3u8DL-RE_PID $pid"; wait $pid
 
-echo "------下载完成, 开始转码: ffmpeg -hide_banner -i \"$tmp_dir/tmp_$name.mp4\" -c copy \"$tmp_dir/$name\""
-
-ffmpeg -hide_banner -i "$tmp_dir/tmp_$name.mp4" -c copy "$tmp_dir/$name"
+  if [ "$transcode" = "true" ]; then
+    echo "------下载完成, 开始转码: ffmpeg -hide_banner -i \"$tmp_dir/tmp_$name.mp4\" -c copy \"$tmp_dir/$name\""
+    ffmpeg -hide_banner -i "$tmp_dir/tmp_$name.mp4" -c copy "$tmp_dir/$name"
+  else
+    mv "$tmp_dir/tmp_$name.mp4" "$tmp_dir/$name"
+  fi
 
 else
 
@@ -45,18 +49,18 @@ EOF
 )
 
 # 发送RPC请求
-response=$(curl -s -X POST -d "$data" "$aria2c_url")
+response=$(curl -s -X POST -d "$data" "$aria2c_url" -x "")
 
 error=$(echo "$response" | jq -r .error)
 if [ "$error" != "null" ]; then
-    echo "RPC请求错误: $response"
-    exit 1
+  echo "RPC请求错误: $response"
+  exit 1
 fi
 
 gid=$(echo "$response" | jq -r .result)
 if [ "$gid" == "null" ]; then
-    echo "RPC请求错误, 无法获取任务GID: $response"
-    exit 1
+  echo "RPC请求错误, 无法获取任务GID: $response"
+  exit 1
 fi
 echo "Aria2_GID $gid"
 data=$(cat <<EOF
@@ -72,27 +76,27 @@ EOF
 )
 
 while true; do
-    response=$(curl -s -X POST -d "$data" "$aria2c_url")
-    status=$(echo "$response" | jq -r '.result.status')
+  response=$(curl -s -X POST -d "$data" "$aria2c_url" -x "")
+  status=$(echo "$response" | jq -r '.result.status')
 
-    if [[ $status == "error" ]]; then
-      echo "下载任务出错: $response"
-      rm "$tmp_dir/$name"
-      exit 1
-    elif [[ $status == "removed" ]]; then
-      echo "下载任务已移除: $response"
-      rm "$tmp_dir/$name"
-      exit 1
-    elif [[ $status == "complete" ]]; then
-      echo "下载任务已完成: $response"
-      break
-    fi
-    
-    completed_length=$(echo "$response" | jq -r '.result.completedLength')
-    total_length=$(echo "$response" | jq -r '.result.totalLength')
-    download_speed=$(echo "$response" | jq -r '.result.downloadSpeed')
-    echo "ARIA2 $completed_length $total_length $download_speed"
-    sleep 1
+  if [[ $status == "error" ]]; then
+    echo "下载任务出错: $response"
+    rm "$tmp_dir/$name"
+    exit 1
+  elif [[ $status == "removed" ]]; then
+    echo "下载任务已移除: $response"
+    rm "$tmp_dir/$name"
+    exit 1
+  elif [[ $status == "complete" ]]; then
+    echo "下载任务已完成: $response"
+    break
+  fi
+  
+  completed_length=$(echo "$response" | jq -r '.result.completedLength')
+  total_length=$(echo "$response" | jq -r '.result.totalLength')
+  download_speed=$(echo "$response" | jq -r '.result.downloadSpeed')
+  echo "ARIA2 $completed_length $total_length $download_speed"
+  sleep 1
 done
 
 fi
