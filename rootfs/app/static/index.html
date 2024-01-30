@@ -119,12 +119,20 @@
                 </div>
                 <div style="display: flex; justify-content: space-around;">
                     <div>
-                        <input style="margin: 5px;" id="cbIsTranscode" type="checkbox" name="checkbox1" v-model="transcode"/>
+                        <input style="margin: 5px;" id="cbIsTranscode" type="checkbox" v-model="transcode"/>
                         <label for="cbIsTranscode">是否转码</label>
-                    </div><br>
+                    </div>
+
+                    <div>
+                        <input type="radio" id="option1" v-model="useproxy" value="0">
+                        <label style="margin-right: 1rem;" for="option1">直接连接</label>
+                        <input type="radio" id="option2" v-model="useproxy" value="1">
+                        <label for="option2">系统代理</label>
+                    </div>
+                    <br>
                 </div>
                 <div style="display: flex; justify-content: space-around; margin: 1rem;">
-                    <button @click="onCache(cacheUrl, cacheName, transcode)">新增</button>
+                    <button @click="onCache(cacheUrl, cacheName, useproxy, transcode)">新增</button>
                     <button style="margin-left: 1rem;" @click="onRefreshFileList()">刷新</button>
                 </div>
 
@@ -242,6 +250,7 @@
                 cacheUrl: '',
                 cacheName: '',
                 transcode: false,
+                useproxy: '0',
 
             }
         },
@@ -423,7 +432,7 @@
                     this.onCopyUrl(`${this.host}/file/${item.fullname}`)
                 }
             },
-            async onCache(url, name, transcode) {
+            async onCache(url, name, useproxy, transcode) {
                 try {
                     let type = 'file'
                     if (url.indexOf('m3u8') !== -1) {
@@ -440,6 +449,7 @@
                             url,
                             type,
                             name,
+                            useproxy: useproxy == 1,
                             transcode,
                         })
                     });
