@@ -23,13 +23,9 @@ m3u8_speed_pattern = re.compile(r'\(\d+\)')
 USER = os.environ.get('USER') or 'admin'
 PASSWORD = os.environ.get('PASSWORD') or '123456'
 DOWNLOAD_DIR = os.environ.get('VIDEO_DIR') or '.'
+DOWNLOAD_PATHS = DOWNLOAD_DIR.split(',')
 MAX_DOWNLOAD_COUNT = os.environ.get('MAX_DOWNLOAD_COUNT')
 MAX_DOWNLOAD_COUNT = int(MAX_DOWNLOAD_COUNT) if MAX_DOWNLOAD_COUNT else 3
-
-TMP_DIR = f"{DOWNLOAD_DIR}/.tmp"
-
-if not os.path.exists(DOWNLOAD_DIR):
-    os.makedirs(DOWNLOAD_DIR)
 
 PORT_NUMBER = 8094
 
@@ -46,6 +42,8 @@ downloading_proc = {}
 
 _cache_id = 0
 
+def _getTmpDir(download_path):
+    return f'{download_path}/.tmp'
 
 def _sanitize_filename(filename):
     cleaned_filename = filename.strip()
@@ -121,14 +119,16 @@ async def status(request):
 
 
 async def cache(request):
-
-    cache_id = _genCacheId()
     data = await request.json()
+    if "path" not in data or data["path"] not in DOWNLOAD_PATHS:
+        return web.json_response({"status": "fail", "msg": "path not in DOWNLOAD_PATHS"})
+    cache_id = _genCacheId()
     download_ready.append(
         {
             "cacheId": cache_id,
             "url": data["url"],
             "type": data["type"],
+            "path": data["path"],
             "name": _sanitize_filename(data["name"]),
             "transcode": data.get("transcode", True),
             "useproxy": data.get("useproxy", True),
@@ -194,6 +194,9 @@ async def cancel(request):
         traceback.print_exc()
         return web.json_response({"status": "fail", "msg": traceback.format_exc()})
 
+async def getpaths(request):
+    return web.json_response({"status": "success", "paths": DOWNLOAD_PATHS})
+
 async def refreshFileList(request):
     try:
         _updateDownloaded()
@@ -211,8 +214,15 @@ async def refreshFileList(request):
 async def deleteFile(request):
     try:
         data = await request.json()
-        filename = data["filename"]
-        filepath = f"{DOWNLOAD_DIR}/{filename}"
+        filepath = data["filename"]
+        isPipei = False
+        for path in DOWNLOAD_PATHS:
+            if filepath.startswith(path + '/'):
+                isPipei = True
+                break
+        if not isPipei:
+            return web.json_response({"status": "fail", "msg": "path not in DOWNLOAD_PATHS"})
+
         if os.path.exists(filepath):
             if os.path.isfile(filepath):
                 os.remove(filepath)
@@ -237,6 +247,7 @@ async def _cacheVideo(param):
         cache_id = param["cacheId"]
         url = param["url"]
         type = param["type"]
+        path = param["path"]
         name = param["name"] if param["name"] else 'unnamed'
         transcode = param["transcode"]
         useproxy = param["useproxy"]
@@ -246,18 +257,21 @@ async def _cacheVideo(param):
             file_ext = '.mp4'
             name = f"{name}{file_ext}"
 
-        for item in downloaded:
-            if item["name"] == name:
-                name = f"{file_name}.{cache_id}{file_ext}"
-                break
+        for p in downloaded:
+            if p["isDir"] and p["name"] == path:
+                for item in p["childs"]:
+                    if item["name"] == name:
+                        name = f"{file_name}.{cache_id}{file_ext}"
+                        break
         for item in downloading:
             if item["name"] == name:
                 name = f"{file_name}.{cache_id}{file_ext}"
                 break
 
+
         param["name"] = name
 
-        tmp_dir = f"{TMP_DIR}_{cache_id}"
+        tmp_dir = f"{_getTmpDir(path)}_{cache_id}"
 
         print(f"try download {url}, filename: {name}", flush=True)
 
@@ -277,6 +291,7 @@ async def _cacheVideo(param):
 
         def run(param, proc):
             cache_id = param["cacheId"]
+            path = param["path"]
             name = param["name"]
             type = param["type"]
 
@@ -325,12 +340,12 @@ async def _cacheVideo(param):
             except Exception as e:
                 traceback.print_exc()
             finally:
-                tmp_file_path = f"{TMP_DIR}_{cache_id}/{name}"
+                tmp_file_path = f"{_getTmpDir(path)}_{cache_id}/{name}"
 
                 if os.path.exists(tmp_file_path):
-                    shutil.move(f"{tmp_file_path}", f"{DOWNLOAD_DIR}/{name}")
-                    if os.path.exists(f"{TMP_DIR}_{cache_id}"):
-                        shutil.rmtree(f"{TMP_DIR}_{cache_id}")
+                    shutil.move(f"{tmp_file_path}", f"{path}/{name}")
+                    if os.path.exists(f"{_getTmpDir(path)}_{cache_id}"):
+                        shutil.rmtree(f"{_getTmpDir(path)}_{cache_id}")
                     _updateDownloaded()
                     _notiftRealtimeStatus(
                         {
@@ -358,8 +373,8 @@ async def _cacheVideo(param):
 
                 if cache_id in downloading_proc:
                     downloading_proc.pop(cache_id)
-                if os.path.exists(f"{TMP_DIR}_{cache_id}"):
-                    shutil.rmtree(f"{TMP_DIR}_{cache_id}")
+                if os.path.exists(f"{_getTmpDir(path)}_{cache_id}"):
+                    shutil.rmtree(f"{_getTmpDir(path)}_{cache_id}")
 
         threading.Thread(target=run, args=(param, proc)).start()
 
@@ -394,7 +409,7 @@ async def _task():
         except:
             traceback.print_exc()
 
-def get_disk_free_space(path):
+def _get_disk_free_space(path):
     stat = os.statvfs(path)
     # 获取每个块的大小
     block_size = stat.f_frsize
@@ -404,12 +419,8 @@ def get_disk_free_space(path):
     free_space = available_blocks * block_size
     return free_space
     
-def _getDir(path, retList, prefix='', layer=0):
-    
+def _getDir(path, retList):
     for filename in os.listdir(path):
-        showName = filename
-        if prefix != '':
-            showName = (prefix + '/' + filename)
         file_path = os.path.join(path, filename)    # 获取文件路径
         file_stat = os.stat(file_path)              # 获取文件信息
         isDir = not os.path.isfile(file_path)
@@ -417,7 +428,7 @@ def _getDir(path, retList, prefix='', layer=0):
         childs = None
         if isDir:
             childs = []
-            _getDir(file_path, childs, showName, layer+1)
+            _getDir(file_path, childs)
         retList.append(
             {
                 "name": filename,
@@ -433,15 +444,29 @@ def _updateDownloaded():
     downloaded.append(
         {
             "name": '__FREE_SIZE__',
-            "fullname": '__FREE_SIZE__',
             "time": 0,
-            "size": get_disk_free_space(DOWNLOAD_DIR),
+            "size": _get_disk_free_space(DOWNLOAD_PATHS[0]),
             "isDir": False,
-            "prefix": '',
-            "layer": 0,
         }
     )
-    _getDir(DOWNLOAD_DIR, downloaded)
+
+    for file_path in DOWNLOAD_PATHS:
+        file_stat = os.stat(file_path)
+        isDir = not os.path.isfile(file_path)
+
+        childs = None
+        if isDir:
+            childs = []
+            _getDir(file_path, childs)
+        downloaded.append(
+            {
+                "name": file_path,
+                "time": file_stat.st_ctime,
+                "size": file_stat.st_size,
+                "isDir": isDir,
+                "childs": childs,
+            }
+        )
 
 async def index(request):
     raise web.HTTPFound('/index.html')
@@ -491,18 +516,20 @@ if __name__ == "__main__":
 
     _updateDownloaded()
     app = web.Application()
-    app.add_routes(
-        [
-            web.get("/", index),
-            web.get("/api/status", status),
-            web.post("/api/cache", cache),
-            web.post("/api/cancel", cancel),
-            web.post("/api/refreshFileList", refreshFileList),
-            web.post("/api/deleteFile", deleteFile),
-            web.static('/file/', path=DOWNLOAD_DIR),
-            web.static('/', path='static'),
-        ]
-    )
+    
+    routes = [
+        web.get("/", index),
+        web.get("/api/status", status),
+        web.post("/api/cache", cache),
+        web.post("/api/cancel", cancel),
+        web.post("/api/getpaths", getpaths),
+        web.post("/api/refreshFileList", refreshFileList),
+        web.post("/api/deleteFile", deleteFile),
+    ]
+    for file_path in DOWNLOAD_PATHS:
+        routes.append(web.static(f'/file{file_path}/', path=file_path))
+    routes.append(web.static('/', path='static'))
+    app.add_routes(routes)
 
     # session管理
     fernet_key = fernet.Fernet.generate_key()

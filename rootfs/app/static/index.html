@@ -114,25 +114,30 @@
                     <input style="width: 80%; margin: 5px;" id="etUrl" type="url" v-model="cacheUrl" />
                 </div>
                 <div style="display: flex; justify-content: space-around;">
-                    <span style="margin: 5px;">名称:</span>
-                    <input style="width: 80%; margin: 5px;" id="etName" type="text" v-model="cacheName" />
+                    <span style="margin: 5px;">路径:</span>
+                    <div style="width: 80%; margin: 5px; display: flex;">
+                        <select id="selectPaths" style="width: 130px;" v-model="path">
+                            <option value="">-</option>
+                        </select>
+                        <span style="margin-left: 5px; margin-right: 5px;">/</span>
+                        <input style="flex: 1 1 100%;" id="etName" type="text" v-model="cacheName" />
+                    </div>
                 </div>
                 <div style="display: flex; justify-content: space-around;">
-                    <div>
-                        <input style="margin: 5px;" id="cbIsTranscode" type="checkbox" v-model="transcode"/>
-                        <label for="cbIsTranscode">是否转码</label>
-                    </div>
-
                     <div>
                         <input type="radio" id="option1" v-model="useproxy" value="0">
                         <label style="margin-right: 1rem;" for="option1">直接连接</label>
                         <input type="radio" id="option2" v-model="useproxy" value="1">
                         <label for="option2">系统代理</label>
                     </div>
+                    <div>
+                        <input style="margin: 5px;" id="cbIsTranscode" type="checkbox" v-model="transcode"/>
+                        <label for="cbIsTranscode">是否转码</label>
+                    </div>
                     <br>
                 </div>
                 <div style="display: flex; justify-content: space-around; margin: 1rem;">
-                    <button @click="onCache(cacheUrl, cacheName, useproxy, transcode)">新增</button>
+                    <button @click="onCache(cacheUrl, path, cacheName, useproxy, transcode)">新增</button>
                     <button style="margin-left: 1rem;" @click="onRefreshFileList()">刷新</button>
                 </div>
 
@@ -144,7 +149,7 @@
                         style="display: flex; justify-content: space-between; flex-wrap: wrap;">
                         <div style="flex: 1 1 100%; display: flex; justify-content: space-between; width: 0px;"
                             class="itemCol">
-                            <span style="width: 95%; word-wrap: break-word;">{{item.name}}</span>
+                            <span style="width: 95%; word-wrap: break-word;">{{item.path+'/'+item.name}}</span>
                         </div>
                         <span style="flex: 0 0 auto;" class="itemCol">{{this._formatTime(new Date(item.time *
                             1000))}}</span>
@@ -155,7 +160,7 @@
                             style="display: flex; justify-content: space-between; flex-wrap: wrap;">
                             <div style="flex: 1 1 100%; display: flex; justify-content: space-between; width: 0px;"
                                 class="itemCol">
-                                <span style="width: 72%; word-wrap: break-word;">{{item.name}}</span><span
+                                <span style="width: 72%; word-wrap: break-word;">{{item.path+'/'+item.name}}</span><span
                                     style="text-align: right;">{{item.speed}}</span>
                             </div>
                             <span style="flex: 0 0 auto;" class="itemCol">{{this._formatTime(new Date(item.time *
@@ -188,7 +193,7 @@
                         style="display: flex; justify-content: space-between; flex-wrap: wrap;">
                         <div style="flex: 1 1 100%; display: flex; justify-content: space-between; width: 0px;"
                             class="itemCol">
-                            <span style="width: 95%; word-wrap: break-word;">{{item.name}}</span>
+                            <span style="width: 95%; word-wrap: break-word;">{{item.path+'/'+item.name}}</span>
                         </div>
                         <span style="flex: 0 0 auto;" class="itemCol">{{this._formatTime(new Date(item.time *
                             1000))}}</span>
@@ -247,6 +252,7 @@
                 downloading: [],
                 downloadedDirs: new Map(),
 
+                path: '',
                 cacheUrl: '',
                 cacheName: '',
                 transcode: false,
@@ -264,11 +270,6 @@
         },
         activated() {
             // console.log('activated');
-        },
-        watch: {
-            host(newValue, oldValue) {
-                this.initStatus(newValue);
-            }
         },
         computed: {
             freeSize() {
@@ -328,7 +329,11 @@
                         ary.push(it)
 
                         if (item.isDir) {
-                            it.isFolded = true;
+                            if(layer === 0){
+                                it.isFolded = false;
+                            } else {
+                                it.isFolded = true;
+                            }
                             if (this.downloadedDirs.has(it.fullname)) {
                                 it.isFolded = this.downloadedDirs.get(it.fullname).isFolded;
                             }
@@ -395,6 +400,7 @@
             },
             initStatus(host) {
                 that = this;
+                this.initRemotePaths();
                 if (this.eventSource) {
                     this.eventSource.close();
                 }
@@ -429,10 +435,36 @@
                 if (item.isDir) {
                     item.isFolded = !item.isFolded
                 } else {
-                    this.onCopyUrl(`${this.host}/file/${item.fullname}`)
+                    this.onCopyUrl(`${this.host}/file${item.fullname}`)
                 }
             },
-            async onCache(url, name, useproxy, transcode) {
+            async initRemotePaths() {
+                try {
+                    let response = await fetch(`${this.host}/api/getpaths`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                    });
+                    let json = await response.json();
+                    console.log(json)
+                    if(json.status !== 'success') {
+                        throw json.msg;
+                    }
+                    var selectPaths = document.getElementById('selectPaths');
+                    selectPaths.innerHTML = '';
+                    json.paths.forEach((option) => {
+                        var newOption = document.createElement('option');
+                        newOption.textContent = option;
+                        selectPaths.appendChild(newOption);
+                    });
+                    this.path = json.paths[0];
+                } catch (error) {
+                    console.error(error)
+                    notyf.error(`获取远程路径失败: ${error}`)
+                }
+            },
+            async onCache(url, path, name, useproxy, transcode) {
                 try {
                     let type = 'file'
                     if (url.indexOf('m3u8') !== -1) {
@@ -448,6 +480,7 @@
                         body: JSON.stringify({
                             url,
                             type,
+                            path,
                             name,
                             useproxy: useproxy == 1,
                             transcode,
@@ -455,9 +488,13 @@
                     });
                     let json = await response.json();
                     console.log(json)
+                    if(json.status !== 'success') {
+                        throw json.msg;
+                    }
 
                 } catch (error) {
                     console.error(error)
+                    notyf.error(`操作失败: ${error}`)
                 }
             },
             async onCancel(cacheId) {
@@ -480,7 +517,7 @@
                     }
                 } catch (error) {
                     console.error(error)
-                    notyf.error('取消失败')
+                    notyf.error(`取消失败`)
                 }
             },
             async onRefreshFileList() {
