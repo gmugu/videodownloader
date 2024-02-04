@@ -120,8 +120,17 @@ async def status(request):
 
 async def cache(request):
     data = await request.json()
-    if "path" not in data or data["path"] not in DOWNLOAD_PATHS:
+
+    path = data["path"]
+
+    isPipei = False
+    for cus_path in DOWNLOAD_PATHS:
+        if path == cus_path or path.startswith(cus_path + '/'):
+            isPipei = True
+            break
+    if not isPipei:
         return web.json_response({"status": "fail", "msg": "path not in DOWNLOAD_PATHS"})
+
     cache_id = _genCacheId()
     download_ready.append(
         {
