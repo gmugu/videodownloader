@@ -322,13 +322,19 @@ async def _cacheVideo(param):
                     if line.startswith("Vid"):
                         line = line.replace("━", "")
                         ls = line.split(' ')
+                        speed = "-"
+                        progress = "-"
                         for item in reversed(ls):
                             if 'Bps' in item:
-                                param["speed"] = m3u8_speed_pattern.sub('', item)
+                                speed = m3u8_speed_pattern.sub('', item)
                                 continue
                             if item.endswith('%'):
-                                param["progress"] = item
+                                progress = item
                                 break
+                        if "speed" in param and param["speed"] == speed and "progress" in param and param["progress"] == progress:
+                            continue
+                        param["speed"] = speed
+                        param["progress"] = progress
 
                     if line.startswith("ARIA2"):
                         ls = line.split(' ')
@@ -349,41 +355,45 @@ async def _cacheVideo(param):
             except Exception as e:
                 traceback.print_exc()
             finally:
-                tmp_file_path = f"{_getTmpDir(path)}_{cache_id}/{name}"
+                try:
+                    tmp_file_path = f"{_getTmpDir(path)}_{cache_id}/{name}"
 
-                if os.path.exists(tmp_file_path):
-                    shutil.move(f"{tmp_file_path}", f"{path}/{name}")
+                    if os.path.exists(tmp_file_path):
+                        shutil.move(f"{tmp_file_path}", f"{path}/{name}")
+                        if os.path.exists(f"{_getTmpDir(path)}_{cache_id}"):
+                            shutil.rmtree(f"{_getTmpDir(path)}_{cache_id}")
+                        _updateDownloaded()
+                        _notiftRealtimeStatus(
+                            {
+                                "type": "downloaded",
+                                "data": downloaded,
+                            }
+                        )
+                    else:
+                        print("文件不存在，下载失败或下载取消", flush=True)
+                        param["time_download_failed"] = time.time()
+                        download_failed.append(param)
+                        _notiftRealtimeStatus(
+                            {
+                                "type": "download_failed",
+                                "data": download_failed,
+                            }
+                        )
+                except Exception as e:
+                    traceback.print_exc()
+                finally:
+                    downloading.remove(param)
+                    _notiftRealtimeStatus(
+                        {
+                            "type": "downloading",
+                            "data": downloading,
+                        }
+                    )
+
+                    if cache_id in downloading_proc:
+                        downloading_proc.pop(cache_id)
                     if os.path.exists(f"{_getTmpDir(path)}_{cache_id}"):
                         shutil.rmtree(f"{_getTmpDir(path)}_{cache_id}")
-                    _updateDownloaded()
-                    _notiftRealtimeStatus(
-                        {
-                            "type": "downloaded",
-                            "data": downloaded,
-                        }
-                    )
-                else:
-                    print("文件不存在，下载失败或下载取消", flush=True)
-                    param["time_download_failed"] = time.time()
-                    download_failed.append(param)
-                    _notiftRealtimeStatus(
-                        {
-                            "type": "download_failed",
-                            "data": download_failed,
-                        }
-                    )
-                downloading.remove(param)
-                _notiftRealtimeStatus(
-                    {
-                        "type": "downloading",
-                        "data": downloading,
-                    }
-                )
-
-                if cache_id in downloading_proc:
-                    downloading_proc.pop(cache_id)
-                if os.path.exists(f"{_getTmpDir(path)}_{cache_id}"):
-                    shutil.rmtree(f"{_getTmpDir(path)}_{cache_id}")
 
         threading.Thread(target=run, args=(param, proc)).start()
 
@@ -448,34 +458,39 @@ def _getDir(path, retList):
             }
         )
 
+lock = threading.Lock()
 def _updateDownloaded():
-    downloaded.clear()
-    downloaded.append(
-        {
-            "name": '__FREE_SIZE__',
-            "time": 0,
-            "size": _get_disk_free_space(DOWNLOAD_PATHS[0]),
-            "isDir": False,
-        }
-    )
-
-    for file_path in DOWNLOAD_PATHS:
-        file_stat = os.stat(file_path)
-        isDir = not os.path.isfile(file_path)
-
-        childs = None
-        if isDir:
-            childs = []
-            _getDir(file_path, childs)
+    lock.acquire()
+    try:
+        downloaded.clear()
         downloaded.append(
             {
-                "name": file_path,
-                "time": file_stat.st_ctime,
-                "size": file_stat.st_size,
-                "isDir": isDir,
-                "childs": childs,
+                "name": '__FREE_SIZE__',
+                "time": 0,
+                "size": _get_disk_free_space(DOWNLOAD_PATHS[0]),
+                "isDir": False,
             }
         )
+
+        for file_path in DOWNLOAD_PATHS:
+            file_stat = os.stat(file_path)
+            isDir = not os.path.isfile(file_path)
+
+            childs = None
+            if isDir:
+                childs = []
+                _getDir(file_path, childs)
+            downloaded.append(
+                {
+                    "name": file_path,
+                    "time": file_stat.st_ctime,
+                    "size": file_stat.st_size,
+                    "isDir": isDir,
+                    "childs": childs,
+                }
+            )
+    finally:
+        lock.release()
 
 async def index(request):
     raise web.HTTPFound('/index.html')
