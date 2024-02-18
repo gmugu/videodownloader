@@ -14,9 +14,9 @@ rm -rf "$tmp_dir"
 if [ "$type" = "m3u8" ] || [ "$type" = "m3u8" ]; then
 
 # N_m3u8DL-RE输出的文件名为tmp.mp4
-echo "------开始使用 N_m3u8DL-RE 下载: N_m3u8DL-RE \"$url\" --tmp-dir \"$tmp_dir\" --save-dir \"$tmp_dir\" --save-name "tmp_$name" --use-system-proxy=$useproxy --check-segments-count=false --auto-select"
+echo "------开始使用 N_m3u8DL-RE 下载: N_m3u8DL-RE \"$url\" --tmp-dir \"$tmp_dir\" --save-dir \"$tmp_dir\" --save-name \"tmp_$name\" --use-system-proxy=$useproxy --check-segments-count=false --auto-select  -M format=mp4 --force-ansi-console --noansi"
 
-N_m3u8DL-RE "$url" --tmp-dir "$tmp_dir" --save-dir "$tmp_dir" --save-name "tmp_$name" --use-system-proxy=$useproxy --check-segments-count=false --auto-select --force-ansi-console --noansi & pid=$!; echo "N_m3u8DL-RE_PID $pid"; wait $pid
+N_m3u8DL-RE "$url" --tmp-dir "$tmp_dir" --save-dir "$tmp_dir" --save-name "tmp_$name" --use-system-proxy=$useproxy --check-segments-count=false --auto-select  -M format=mp4 --force-ansi-console --noansi & pid=$!; echo "N_m3u8DL-RE_PID $pid"; wait $pid
 
   if [ "$transcode" = "true" ]; then
     echo "------下载完成, 开始转码: ffmpeg -hide_banner -i \"$tmp_dir/tmp_$name.mp4\" -c copy \"$tmp_dir/$name\""

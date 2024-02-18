@@ -139,7 +139,7 @@ async def cache(request):
             "type": data["type"],
             "path": data["path"],
             "name": _sanitize_filename(data["name"]),
-            "transcode": data.get("transcode", True),
+            "transcode": data.get("transcode", False),
             "useproxy": data.get("useproxy", True),
             "time": time.time(),
         }
