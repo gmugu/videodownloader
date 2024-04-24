@@ -130,14 +130,10 @@
                         <input type="radio" id="option2" v-model="useproxy" value="1">
                         <label for="option2">系统代理</label>
                     </div>
-                    <div>
-                        <input style="margin: 5px;" id="cbIsTranscode" type="checkbox" v-model="transcode"/>
-                        <label for="cbIsTranscode">是否转码</label>
-                    </div>
                     <br>
                 </div>
                 <div style="display: flex; justify-content: space-around; margin: 1rem;">
-                    <button @click="onCache(cacheUrl, path, cacheName, useproxy, transcode)">新增</button>
+                    <button @click="onCache(cacheUrl, path, cacheName, useproxy)">新增</button>
                     <button style="margin-left: 1rem;" @click="onRefreshFileList()">刷新</button>
                 </div>
 
@@ -255,7 +251,6 @@
                 path: '',
                 cacheUrl: '',
                 cacheName: '',
-                transcode: false,
                 useproxy: '0',
 
             }
@@ -464,7 +459,7 @@
                     notyf.error(`获取远程路径失败: ${error}`)
                 }
             },
-            async onCache(url, path, name, useproxy, transcode) {
+            async onCache(url, path, name, useproxy) {
                 try {
                     let type = 'file'
                     if (url.indexOf('m3u8') !== -1) {
@@ -483,7 +478,6 @@
                             path,
                             name,
                             useproxy: useproxy == 1,
-                            transcode,
                         })
                     });
                     let json = await response.json();

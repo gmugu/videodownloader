@@ -139,7 +139,6 @@ async def cache(request):
             "type": data["type"],
             "path": data["path"],
             "name": _sanitize_filename(data["name"]),
-            "transcode": data.get("transcode", False),
             "useproxy": data.get("useproxy", True),
             "time": time.time(),
         }
@@ -258,7 +257,6 @@ async def _cacheVideo(param):
         type = param["type"]
         path = param["path"]
         name = param["name"] if param["name"] else 'unnamed'
-        transcode = param["transcode"]
         useproxy = param["useproxy"]
 
         file_name, file_ext = os.path.splitext(name)
@@ -292,7 +290,6 @@ async def _cacheVideo(param):
                 tmp_dir,
                 name,
                 "true" if useproxy else "false",
-                "true" if transcode else "false",
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,

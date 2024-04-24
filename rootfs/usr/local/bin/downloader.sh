@@ -7,7 +7,6 @@ url=$2
 tmp_dir=$3
 name=$4
 useproxy=$5
-transcode=$6
 
 rm -rf "$tmp_dir"
 
@@ -18,12 +17,7 @@ echo "------开始使用 N_m3u8DL-RE 下载: N_m3u8DL-RE \"$url\" --tmp-dir \"$t
 
 N_m3u8DL-RE "$url" --tmp-dir "$tmp_dir" --save-dir "$tmp_dir" --save-name "tmp_$name" --use-system-proxy=$useproxy --check-segments-count=false --auto-select  -M format=mp4 --force-ansi-console --noansi & pid=$!; echo "N_m3u8DL-RE_PID $pid"; wait $pid
 
-  if [ "$transcode" = "true" ]; then
-    echo "------下载完成, 开始转码: ffmpeg -hide_banner -i \"$tmp_dir/tmp_$name.mp4\" -c copy \"$tmp_dir/$name\""
-    ffmpeg -hide_banner -i "$tmp_dir/tmp_$name.mp4" -c copy "$tmp_dir/$name"
-  else
-    mv "$tmp_dir/tmp_$name.mp4" "$tmp_dir/$name"
-  fi
+mv "$tmp_dir/tmp_$name.mp4" "$tmp_dir/$name"
 
 else
 
