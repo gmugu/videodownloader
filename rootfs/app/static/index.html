@@ -138,8 +138,9 @@
                 </div>
 
                 <div style="overflow-y: scroll;">
-                    <div>
+                    <div style="display: flex; justify-content: space-between;">
                         <span>正在下载/等待下载</span>
+                        <span>{{cpuTemp}}</span>
                     </div>
                     <div v-for="item in listDownloadReady" class="statusReady"
                         style="display: flex; justify-content: space-between; flex-wrap: wrap;">
@@ -253,12 +254,21 @@
                 cacheName: '',
                 useproxy: '0',
 
+                cpuTemp: '',
             }
         },
         created() {
             // console.log('created');
             this.host = window.location.origin
             this.initStatus(this.host);
+            setInterval(async () => {
+                temp = await this.getCpuTemp()
+                if(temp && temp !== ''){
+                    this.cpuTemp = `CPU温度：${temp}℃`
+                } else {
+                    this.cpuTemp = ''
+                }
+            }, 1000);
         },
         mounted() {
             // console.log('mounted');
@@ -324,7 +334,7 @@
                         ary.push(it)
 
                         if (item.isDir) {
-                            if(layer === 0){
+                            if (layer === 0) {
                                 it.isFolded = false;
                             } else {
                                 it.isFolded = true;
@@ -366,6 +376,26 @@
             }
         },
         methods: {
+            async getCpuTemp() {
+                try {
+                    let response = await fetch(`${this.host}/api/temp`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                    });
+                    let json = await response.json();
+                    console.log(json)
+                    if (json.status === 'success') {
+                        return json.temp;
+                    } else {
+                        throw "json.status !== 'success'"
+                    }
+                } catch (error) {
+                    console.error(error)
+                    return ''
+                }
+            },
             isShow(item) {
                 for (var prefix = item.prefix; prefix && prefix !== '';) {
                     var p = this.downloadedDirs.get(prefix);
@@ -443,7 +473,7 @@
                     });
                     let json = await response.json();
                     console.log(json)
-                    if(json.status !== 'success') {
+                    if (json.status !== 'success') {
                         throw json.msg;
                     }
                     var selectPaths = document.getElementById('selectPaths');
@@ -482,7 +512,7 @@
                     });
                     let json = await response.json();
                     console.log(json)
-                    if(json.status !== 'success') {
+                    if (json.status !== 'success') {
                         throw json.msg;
                     }
 

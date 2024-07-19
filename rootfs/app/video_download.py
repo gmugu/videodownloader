@@ -250,6 +250,18 @@ async def deleteFile(request):
         traceback.print_exc()
         return web.json_response({"status": "fail", "msg": traceback.format_exc()})
 
+async def getTemp(request):
+    try:
+        file_path = "/sys/class/thermal/thermal_zone0/temp"
+        if os.path.exists(file_path):
+            with open(file_path, 'r') as file:
+                content = file.read()
+                temp = int(content)
+                return web.json_response({"status": "success", "temp": temp / 1000})
+    except Exception as e:
+        traceback.print_exc()
+        return web.json_response({"status": "fail", "msg": traceback.format_exc()})
+
 async def _cacheVideo(param):
     try:
         cache_id = param["cacheId"]
@@ -546,6 +558,7 @@ if __name__ == "__main__":
         web.post("/api/getpaths", getpaths),
         web.post("/api/refreshFileList", refreshFileList),
         web.post("/api/deleteFile", deleteFile),
+        web.get("/api/temp", getTemp),
     ]
     for file_path in DOWNLOAD_PATHS:
         routes.append(web.static(f'/file{file_path}/', path=file_path))
